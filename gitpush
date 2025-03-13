@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitpush
+# @created     : Thursday May 02, 2019 21:07:57 IST
+# @copyright   : Copyright (c) Linus Fernandes
+# @description : Sync and push Git branches
+######################################################################
+
+RED="\033[0;31m"
+NC="\033[0m" # No Color
+
+# shellcheck disable=SC2317,SC2329
+function message() {
+  local ret=$1
+  if [ "$ret" -eq 0 ]; then
+    git diff development main
+    git gc
+  else
+    echo -e "${RED}Returning to branch development${NC}"
+    git switch development || exit 1
+  fi
+  exit "$ret"
+}
+
+require() {
+  hash "$@" || exit
+}
+
+parentpath="$(dirname "$0")"
+if test -e "${parentpath}/internet.sh"; then
+  # shellcheck disable=SC1091
+  source "${parentpath}/internet.sh"
+fi
+
+set -e
+require git
+
+mainBranch="main"
+
+trap 'ret=$?; message $ret' EXIT
+
+# Ensure latest changes
+git pull --rebase
+
+# check if local branch development exists.
+# If not, create it
+if ! git show-ref --quiet refs/heads/development; then
+  printf "Local branch development does not exist. Creating it ...\n"
+  git checkout -b development
+fi
+
+# Push development branch
+git push origin development
+
+# Switch to main branch and merge/rebase changes
+git switch "$mainBranch"
+git rebase development # Use rebase instead of merge for cleaner history
+git pull --rebase
+git push origin "$mainBranch"
+
+# Switch back to development and update it
+git switch development
+git rebase "$mainBranch"
+git push origin development # Push updated development branch
+
+exit 0

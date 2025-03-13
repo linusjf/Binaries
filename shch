@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+shellcheck_net() {
+  local -i ret=0
+  if [[ "$#" -gt 0 ]]; then
+    for i in "$@"; do
+      if [[ -r "$i" && -s "$i" ]]; then
+        echo "Checking ${i}..."
+        check "$i"
+        ret=$((ret + $?))
+      else
+        echo "Error: '$i' is not a readable file or is empty."
+        ret=$((ret + 1))
+      fi
+    done
+  else
+    readarray -t execs < <(find . -maxdepth 1 -type f -executable -print)
+    readarray -t scripts < <(find . -maxdepth 1 -name '*.sh' -print)
+    scripts+=("${execs[@]}")
+
+    for i in "${scripts[@]}"; do
+      [[ -s "$i" ]] || continue
+      echo "Checking ${i}..."
+      check "$i"
+      ret=$((ret += $?))
+    done
+  fi
+
+  if [[ "$ret" -gt 0 ]]; then
+    echo "ShellCheck found issues. Check *.out files for details."
+  fi
+
+  return $ret
+}
+
+check() {
+  local f
+  f="$(basename "$1")"
+
+  if checkbashisms "$f"; then
+    if ! curl --data-urlencode "script@$1" -sS 'https://www.shellcheck.net/shellcheck.php' > "${PREFIX}/tmp/${f}.json"; then
+      echo "Error: Failed to connect to ShellCheck API" >&2
+      return 1
+    fi
+    if jq -e '. | length > 0' "${PREFIX}/tmp/${f}.json" &> /dev/null; then
+      mv "${PREFIX}/tmp/${f}.json" "${1}.out"
+      return 1
+    else
+      return 0
+    fi
+  else
+    printf "Skipping %s...\n" "$1"
+  fi
+
+}
+
+require() {
+  for cmd in "$@"; do
+    if ! command -v "$cmd" &> /dev/null; then
+      echo "Error: Required command '$cmd' not found." >&2
+      exit 1
+    fi
+  done
+}
+
+require jq rm curl find stat checkbashisms
+shellcheck_net "$@"

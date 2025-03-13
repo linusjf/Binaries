@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+# Cleanup, version 3
+
+function require() {
+  hash "$@" || exit 127
+}
+
+set -e
+require mv tail dirname readlink basename
+
+MY_DIR="$(dirname "$(readlink -f "$0")")"
+
+# shellcheck disable=SC1091
+source "${MY_DIR}/debug.sh"
+
+# shellcheck disable=SC2034
+DEBUG=false
+
+# shellcheck disable=SC1091
+source "${MY_DIR}/debugon.sh"
+
+LOG_DIR="${PREFIX}/var/log"
+
+# Only users with $UID 0 have root privileges.
+ROOT_UID=0
+
+# Default number of lines saved.
+LINES=50
+
+# Can't change directory?
+E_XCD=86
+
+# Non-root exit error.
+E_NOTROOT=87
+
+# Run as root, of course.
+if ((UID != ROOT_UID)); then
+  printf "Must be root to run this script.\n" >&2
+  exit "$E_NOTROOT"
+fi
+
+# Non-numerical argument (bad argument format).
+E_WRONGARGS=85
+
+case "$1" in
+  "")
+    lines=50
+    ;;
+  *[!0-9]*)
+    printf "Usage: %s lines-to-cleanup\n" "$(basename "$0")" >&2
+    exit "$E_WRONGARGS"
+    ;;
+  *)
+    lines="$1"
+    ;;
+esac
+
+cd "$LOG_DIR" || {
+  printf "Cannot change to necessary directory.\n" >&2
+  exit "$E_XCD"
+}
+
+# Save last section of pacman log file.
+tail -n "$lines" pacman.log > pacman.temp \
+  && mv pacman.temp pacman.log
+
+# ': > wtmp' and '> wtmp' have the same effect.
+: > wtmp
+
+printf "Log files cleaned up.\n"
+
+# shellcheck disable=SC1091
+source "${MY_DIR}/debugoff.sh"
+
+exit 0

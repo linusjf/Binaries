@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+require() {
+  hash "$@" || exit
+}
+set -e
+require git
+
+if [[ $# -lt 1 ]]; then
+  printf "usage: %s searchstring\n" "$0"
+  exit 1
+fi
+
+if ! git log --all --grep="$1"; then
+  printf "Error searching Git log\n" >&2
+  exit 1
+fi
+
+exit 0

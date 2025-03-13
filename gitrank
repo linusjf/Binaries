@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitrank
+# @created     : Friday Jan 27, 2023 04:48:00 IST
+# @modified    : Improved error handling and security
+# @description : Ranks Git contributors by commit count
+######################################################################
+
+require() {
+  hash "$@" 2> /dev/null || {
+    echo "Error: $1 not found! Exiting..."
+    exit 1
+  }
+}
+
+require git
+
+# Ensure script is run inside a Git repository
+if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+  echo "Error: Not a Git repository. Exiting..."
+  exit 1
+fi
+
+# Display contributor rankings
+if ! git shortlog -s -n --no-merges; then
+  echo "Error: Failed to fetch contributor rankings."
+  exit 1
+fi
+
+exit 0

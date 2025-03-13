@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+# Function to check if a required command exists
+require() {
+  command -v "$1" > /dev/null 2>&1 || {
+    echo "Error: Required command '$1' not found." >&2
+    exit 127
+  }
+}
+
+# Ensure required commands exist
+require mkdir
+require mysql_install_db
+
+# Create MySQL configuration directory safely
+CONFIG_DIR="${PREFIX}/etc/my.cnf.d"
+if [[ ! -d "$CONFIG_DIR" ]]; then
+  mkdir -p "$CONFIG_DIR" || {
+    echo "Error: Failed to create directory $CONFIG_DIR" >&2
+    exit 1
+  }
+  echo "Created configuration directory: $CONFIG_DIR"
+else
+  echo "Configuration directory already exists: $CONFIG_DIR"
+fi
+
+# Initialize MySQL database if it doesn't already exist
+DB_DIR="${PREFIX}/var/lib/mysql"
+if [[ -d "$DB_DIR/mysql" ]]; then
+  echo "MySQL database directory already exists: $DB_DIR"
+else
+  echo "Initializing MySQL database..."
+  mysql_install_db || {
+    echo "Error: Failed to initialize MySQL database" >&2
+    exit 1
+  }
+  echo "MySQL database initialized successfully."
+fi
+
+# Reminder to run MySQL secure installation
+echo "To secure the installation, run: mysql_secure_installation"

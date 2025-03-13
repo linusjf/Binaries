@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+function require() {
+  hash "$@" || exit 127
+}
+require realpath mysql
+if [ $# -ne 5 ]; then
+  echo "usage: $0 user pwd host db script"
+  echo "user - user name"
+  echo "pwd - password"
+  echo "host - host name"
+  echo "db - database name"
+  echo "script - sql script"
+  exit 1
+fi
+username="$1"
+password="$2"
+host="$3"
+db="$4"
+script=$(realpath "$5")
+mysql --user="$username" -p"$password" -h "$host" -D "$db" < "$script"
+exit $?

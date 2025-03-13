@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+# Ensure required command is available
+function require() {
+  command -v "$1" > /dev/null 2>&1 || {
+    echo "Error: $1 is required but not found."
+    exit 127
+  }
+}
+
+require pg_ctl
+
+PG_DATA_DIR="${PREFIX}/var/lib/postgresql"
+
+echo "Stopping PostgreSQL server..."
+exec pg_ctl -D "$PG_DATA_DIR" stop

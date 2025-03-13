@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : mkpackagedirs
+# @created     : Friday May 03, 2019 08:11:52 IST
+# @lastupdated : Sunday Mar 1, 2025 13:12:00 IST
+# @description : Creates package directories for one or more Java packages.
+######################################################################
+
+# Function to check if a required command exists
+require() {
+  command -v "$1" > /dev/null 2>&1 || {
+    echo "Error: Required command '$1' not found." >&2
+    exit 127
+  }
+}
+
+# Ensure 'mkdir' is available
+require mkdir
+
+# Function to display usage information
+usage() {
+  echo "Usage: mkpackagedirs <package1> [package2] [package3] ..."
+  echo "  package - Java package name(s), e.g., 'com.example.project'"
+  echo "           Multiple packages can be provided separated by spaces."
+  exit 1
+}
+
+# Ensure at least one package name is provided
+if [[ $# -eq 0 ]]; then
+  usage
+fi
+
+# Iterate over each package name provided
+for package in "$@"; do
+  # Convert package name to directory structure (replace dots with slashes)
+  dir="${package//./\/}"
+
+  echo "Creating directory: $dir"
+
+  # Create the directory and handle errors
+  mkdir -p "$dir" || {
+    echo "Error: Failed to create directory '$dir'" >&2
+    exit 1
+  }
+done
+
+echo "All directories created successfully."
+exit 0

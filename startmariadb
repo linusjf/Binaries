@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+# Function to check if a command exists
+function require() {
+  if ! command -v "$1" &> /dev/null; then
+    echo "Error: Required command '$1' not found. Please install it first." >&2
+    exit 127
+  fi
+}
+
+# Ensure mariadb-safe is installed
+require mariadb-safe
+
+# Start MariaDB in the background
+mariadb-safe -u root &
+
+# Optional: Provide a message indicating success
+echo "MariaDB is starting..."

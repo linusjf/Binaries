@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+function require() {
+  hash "$@" || exit 127
+}
+require psql
+
+if [ $# -ne 1 ]; then
+  echo "usage: $0 db"
+  echo "db - database name"
+  exit 1
+fi
+db="$1"
+# Open your database
+psql "$db"
+exit $?

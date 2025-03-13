@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# unpack: Extract common file formats
+
+# Display usage if no parameters given
+if [[ $# -eq 0 ]]; then
+  echo "Usage: ${0##*/} <archive(s)> - extract common file formats"
+  exit 1
+fi
+
+# Required programs
+req_progs=(7z unrar unzip tar bunzip2 ar gunzip uncompress)
+missing_progs=()
+
+# Check if required programs are installed
+for p in "${req_progs[@]}"; do
+  command -v "$p" > /dev/null 2>&1 || missing_progs+=("$p")
+done
+
+if [[ ${#missing_progs[@]} -gt 0 ]]; then
+  echo "Error: The following required programs are missing: ${missing_progs[*]}"
+  exit 1
+fi
+
+# Loop through provided files
+for f in "$@"; do
+  if [[ ! -f "$f" ]]; then
+    echo "Error: File '$f' does not exist."
+    continue
+  fi
+
+  echo "Extracting '$f'..."
+  case "$f" in
+    *.7z) 7z x "$f" ;;
+    *.tar.bz2 | *.tbz2) tar xvjf "$f" ;;
+    *.bz2) bunzip2 "$f" ;;
+    *.deb) ar vx "$f" ;;
+    *.tar.gz | *.tgz) tar xvzf "$f" ;;
+    *.gz) gunzip "$f" ;;
+    *.tar.xz) tar xvf "$f" ;;
+    *.tar) tar xvf "$f" ;;
+    *.rar) unrar x "$f" ;;
+    *.zip) unzip "$f" ;;
+    *.Z) uncompress "$f" ;;
+    *) echo "Error: Unsupported file format for '$f'" ;;
+  esac
+done

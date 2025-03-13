@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+function require() {
+  hash "$@" || exit 127
+}
+require mysql rm
+if [ $# -ne 3 ]; then
+  echo "usage: $0 user pwd"
+  echo "user - user name"
+  echo "pwd - password"
+  echo "host - host name or ip address"
+  exit 1
+fi
+username="$1"
+password="$2"
+host="$3"
+sql="CREATE USER '$username'@'$host' IDENTIFIED BY '$password';"
+grant="GRANT ALL PRIVILEGES ON *.* TO '$username'@'$host';"
+echo "$sql" > create.sql
+echo "$grant" >> create.sql
+(mysql --user=u0_a286 -D mysql -h localhost < create.sql \
+  && rm create.sql)
+exit $?

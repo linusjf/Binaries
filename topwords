@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+# Ensure required commands are available
+function require() {
+  for cmd in "$@"; do
+    command -v "$cmd" > /dev/null 2>&1 || {
+      echo "Error: $cmd is required but not installed."
+      exit 127
+    }
+  done
+}
+
+require curl sort tr grep uniq head
+
+# Number of words to display
+NUM_WORDS="${1:-10}"
+STOP_WORDS="${2:-stopwords}"
+
+# Download stopword file if not present
+if [[ ! -f "$STOP_WORDS" ]]; then
+  echo "Downloading stopwords..."
+  if ! curl -sL "https://raw.githubusercontent.com/stopwords-iso/stopwords-en/master/stopwords-en.txt" -o "$STOP_WORDS"; then
+    echo "Error: Failed to download stopwords file."
+    exit 1
+  fi
+  sort -o "$STOP_WORDS" "$STOP_WORDS"
+fi
+
+# Process input, remove stopwords, and get most frequent words
+tr '[:upper:]' '[:lower:]' \
+  |
+  # Convert to lowercase
+  grep -oE "\b[a-z']{2,}\b" \
+  |
+  # Extract words (excluding single characters)
+  sort | uniq -c | sort -nr \
+  |
+  # Count occurrences and sort by frequency
+  grep -Fvwf "$STOP_WORDS" \
+  |
+  # Remove stopwords
+  head -n "$NUM_WORDS" # Display top N words

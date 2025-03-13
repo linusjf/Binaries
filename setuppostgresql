@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Function to check required commands
+function require() {
+  for cmd in "$@"; do
+    if ! command -v "$cmd" &> /dev/null; then
+      echo "Error: Required command '$cmd' not found. Please install it." >&2
+      exit 127
+    fi
+  done
+}
+
+# Check required commands
+require mkdir initdb pg_ctl createuser createdb
+
+# Define PREFIX if not set
+PREFIX="${PREFIX:-/usr/local}"
+
+# Ensure PostgreSQL data directory exists
+PGDATA="${PREFIX}/var/lib/postgresql"
+mkdir -p "$PGDATA"
+
+# Initialize the database
+if [ ! -f "$PGDATA/PG_VERSION" ]; then
+  echo "Initializing PostgreSQL database..."
+  initdb -D "$PGDATA"
+else
+  echo "Database already initialized."
+fi
+
+# Start PostgreSQL server
+echo "Starting PostgreSQL server..."
+pg_ctl -D "$PGDATA" -l "$PGDATA/logfile" start -w
+
+# Create user and database if they do not exist
+if ! psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='adminpgsql'" | grep -q 1; then
+  echo "Creating superuser 'adminpgsql'..."
+  createuser --superuser --pwprompt adminpgsql
+fi
+
+if ! psql -U postgres -lqt | cut -d \| -f 1 | grep -qw mydb; then
+  echo "Creating database 'mydb'..."
+  createdb mydb
+fi
+
+echo "PostgreSQL setup complete."
+
+# Function to stop PostgreSQL safely
+function stop_postgres() {
+  echo "Stopping PostgreSQL server..."
+  pg_ctl -D "$PGDATA" stop -m fast
+}
+
+# Trap to ensure PostgreSQL stops on script exit
+trap stop_postgres EXIT

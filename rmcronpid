@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+# Function to check if a required command exists
+require() {
+  command -v "$1" > /dev/null 2>&1 || {
+    echo "Error: Required command '$1' not found." >&2
+    exit 127
+  }
+}
+
+set -e
+# Ensure `rm` command exists
+require rm
+
+# Remove the crond PID file
+rm -f "${PREFIX}/var/run/crond.pid"

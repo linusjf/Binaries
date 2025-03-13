@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitpush
+# @created     : Thursday May 02, 2019 21:07:57 IST
+# @modified    : Updated with improved error handling and safety measures
+# @copyright   : Copyright (c) Linus Fernandes
+# @description : Script to push changes to the development branch safely
+######################################################################
+
+require() {
+  hash "$1" 2> /dev/null || {
+    echo "Error: $1 not found!"
+    exit 1
+  }
+}
+
+parentpath="$(dirname "$(realpath "$0")")"
+if [[ -e "${parentpath}/internet.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${parentpath}/internet.sh"
+fi
+
+set -e
+require git
+
+RED="\033[0;31m"
+GREEN="\033[0;32m"
+NC="\033[0m" # No Color
+
+command="git push -u origin development"
+trap message EXIT
+
+function message() {
+  local ret=$?
+  if [[ "$ret" -eq 0 ]]; then
+    echo -e "${GREEN}✅ Successfully exited with code $ret from last command: $command${NC}"
+    if [[ "$(git rev-parse development)" != "$(git rev-parse main)" ]]; then
+      git diff development main
+    fi
+    git gc
+  else
+    echo -e "${RED}❌ Error: Exit $ret from last command: $command${NC}"
+    echo -e "${RED}Returning to branch development...${NC}"
+    git checkout development || echo -e "${RED}Failed to switch back to development branch.${NC}"
+  fi
+  exit "$ret"
+}
+
+$command

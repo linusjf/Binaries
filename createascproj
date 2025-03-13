@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+function require() {
+  hash "$@" || exit
+}
+require npm npx
+function usage() {
+  echo "Usage: $0 projName"
+  exit 1
+}
+if [ $# -ne 1 ]; then
+  usage
+fi
+mkdir "$1"
+cd "$1" || exit
+npm init -y
+npm install --save-dev assemblyscript
+npx asinit -y .
+npm run asbuild
+npm test
+# npm start

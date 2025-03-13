@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+check_dependencies() {
+  for cmd in "$@"; do
+    if ! command -v "$cmd" &> /dev/null; then
+      echo "Error: Required command '$cmd' not found. Please install it." >&2
+      exit 127
+    fi
+  done
+}
+
+check_dependencies shfmt awk
+
+shfmt --find . | awk -F'/' 'NF==1'

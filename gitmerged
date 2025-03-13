@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitpush
+# @created     : Thursday May 02, 2019 21:07:57 IST
+# @copyright   : Copyright (c) Linus Fernandes
+# @description :
+######################################################################
+
+RED="\033[0;31m"
+NC="\033[0m" # No Color
+
+function message() {
+  local ret=$?
+  if ((ret == 0)); then
+    git diff development main
+    git gc
+  else
+    printf "%sReturning to branch development%s\n" "$RED" "$NC"
+    git checkout development
+  fi
+  exit "$ret"
+}
+
+require() {
+  hash "$@" || exit
+}
+
+set -e
+require git
+
+mainBranch="main"
+
+trap message EXIT
+
+if ! git checkout "$mainBranch"; then
+  echo "Error checking out $mainBranch" >&2
+  exit 1
+fi
+
+if ! git merge development; then
+  echo "Error merging development into $mainBranch" >&2
+  exit 1
+fi
+
+if ! git push -u origin "$mainBranch"; then
+  echo "Error pushing changes to $mainBranch" >&2
+  exit 1
+fi
+
+if ! git checkout development; then
+  echo "Error checking out development" >&2
+  exit 1
+fi
