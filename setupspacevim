@@ -71,7 +71,7 @@ while getopts ":hnt" opt; do
 done
 
 # Ensure dependencies
-ensure_dependencies curl "$VIM_EXECUTABLE" nvim
+ensure_dependencies curl "$VIM_EXECUTABLE" rm mv
 
 # Remove existing SpaceVim directories
 for dir in "${HOME_DIR}/.vim" "${HOME_DIR}/.config/nvim" "${HOME_DIR}/.cache/SpaceVim" "${HOME_DIR}/.SpaceVim" "${HOME_DIR}/.SpaceVim.d"; do
