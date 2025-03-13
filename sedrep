@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+function require() {
+  hash "$@" || exit 127
+}
+
+set -e
+require sed
+
+if [ $# -eq 0 ]; then
+  printf "Error: no files specified\n" >&2
+  exit 1
+fi
+
+for file in "$@"; do
+  if ! sed -i 's|bin/bash|usr/bin/env bash|g' "$file"; then
+    printf "Error modifying %s\n" "$file" >&2
+    exit 1
+  fi
+done
+
+exit 0

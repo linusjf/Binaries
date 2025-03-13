@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+# Ensure required commands exist
+require() {
+  hash "$@" 2> /dev/null || {
+    echo "Error: $1 not found! Exiting..."
+    exit 1
+  }
+}
+
+require git find
+
+# Get the root directory of the Git repository
+root=$(git rev-parse --show-toplevel 2> /dev/null)
+
+# Ensure script is run inside a Git repository
+if [ -z "$root" ]; then
+  echo "Error: Not a Git repository. Exiting..."
+  exit 1
+fi
+
+# Ensure the .git directory exists before proceeding
+if [ -d "${root}/.git" ]; then
+  find "${root}/.git" -type f -name "*.tmp_obj*" -delete
+  echo "Deleted temporary Git objects in ${root}/.git"
+else
+  echo "Error: .git directory not found. Exiting..."
+  exit 1
+fi
+
+exit 0

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+# Ensure required command is available
+function require() {
+  command -v "$1" > /dev/null 2>&1 || {
+    echo "Error: $1 is required but not installed."
+    exit 127
+  }
+}
+
+require mysql_upgrade
+
+# Allow passing username as an argument or use default
+MYSQL_USER="${1:-u0_a286}"
+
+echo "Running MySQL upgrade..."
+exec mysql_upgrade -u "$MYSQL_USER" --force

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+function require() {
+  hash "$@" || exit 127
+}
+require mariadb
+mariadb -u u0_a286

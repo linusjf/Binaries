@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitlastcommit
+# @created     : Thursday Dec 15, 2022 07:43:00 IST
+# @copyright   : Copyright (c) Linus Fernandes
+# @description :
+######################################################################
+
+require() {
+  hash "$@" || exit
+}
+set -e
+require git
+
+if ! output=$(git log -n 1); then
+  echo "Error retrieving last Git commit" >&2
+  exit 1
+fi
+
+printf "%s\n" "$output"

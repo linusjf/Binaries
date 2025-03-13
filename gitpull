@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitpull
+# @created     : Wednesday Feb 19, 2020 21:59:57 IST
+# @copyright   : Copyright (c) Linus Fernandes
+# @description : Git branch sync script
+######################################################################
+
+RED="\033[0;31m"
+NC="\033[0m" # No Color
+
+function message() {
+  local ret=$1
+  if [ "$ret" -eq 0 ]; then
+    git diff development main
+    git gc
+  else
+    echo -e "${RED}Returning to branch development${NC}"
+    git switch development || exit 1
+  fi
+  exit "$ret"
+}
+
+require() {
+  hash "$@" || exit
+}
+
+parentpath="$(dirname "$0")"
+if test -e "${parentpath}/internet.sh"; then
+  # shellcheck disable=SC1091
+  source "${parentpath}/internet.sh"
+fi
+
+set -e
+require git
+
+mainBranch="main"
+
+trap 'ret=$?; message $ret' EXIT
+
+git switch development
+git fetch --all
+git pull --rebase
+
+git switch "$mainBranch"
+git fetch --all
+git pull --rebase
+
+git switch development

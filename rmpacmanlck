@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+# Function to check if a required command exists
+require() {
+  command -v "$1" > /dev/null 2>&1 || {
+    echo "Error: Required command '$1' not found." >&2
+    exit 127
+  }
+}
+
+# Ensure `rm` command exists
+require rm
+
+# Remove the pacman database lock file
+LOCK_FILE="${PREFIX}/var/lib/pacman/db.lck"
+
+# shellcheck disable=SC2015
+if [[ -e "$LOCK_FILE" ]]; then
+  rm -f "$LOCK_FILE" && echo "Removed: $LOCK_FILE" || {
+    echo "Error: Failed to remove $LOCK_FILE" >&2
+    exit 1
+  }
+else
+  echo "Warning: Lock file does not exist: $LOCK_FILE"
+fi

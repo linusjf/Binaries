@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitcommit
+# @created     : Tuesday Jan 11, 2022 08:00:00 IST
+# @copyright   : Copyright (c) Linus Fernandes
+# @description :
+######################################################################
+
+require() {
+  hash "$@" || exit
+}
+set -e
+require git hub
+
+# shellcheck source=/dev/null
+source "${HOME}/.gitrc"
+
+if [[ ! -e commit.txt ]]; then
+  echo "Error: commit.txt not found" >&2
+  exit 1
+fi
+
+if ! git commit -F commit.txt; then
+  echo "Error committing changes" >&2
+  exit 1
+fi
+
+exit 0

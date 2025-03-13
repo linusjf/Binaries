@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+require() {
+  hash "$@" || exit
+}
+
+require git readlink
+
+if ! git_dir=$(readlink -f "$(git rev-parse --git-dir)"); then
+  echo "Error retrieving Git repository directory" >&2
+  exit 1
+fi
+
+printf "%s\n" "$git_dir"

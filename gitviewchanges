@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+# Function to check if required commands exist
+require() {
+  hash "$1" 2> /dev/null || {
+    echo "Error: '$1' command not found! Exiting..."
+    exit 1
+  }
+}
+
+require git
+
+# Check if inside a Git repository
+if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+  echo "Error: Not a Git repository. Exiting..."
+  exit 1
+fi
+
+# Run git log with optional arguments
+git log --patch "$@"
+
+exit 0

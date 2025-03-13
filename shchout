@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+# Function to check for required commands
+require() {
+  for cmd in "$@"; do
+    if ! command -v "$cmd" &> /dev/null; then
+      echo "Error: Required command '$cmd' not found." >&2
+      exit 1
+    fi
+  done
+}
+
+# Ensure necessary commands are available
+require find xargs basename shch
+
+# Find all .out files and process them with shch
+# shellcheck disable=SC2016
+find . -name "*.out" -print0 \
+  | xargs -0 --no-run-if-empty -I '{}' bash -c 'shch "$(basename "{}" .out)"'

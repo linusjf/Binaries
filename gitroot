@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+# Function to check if required commands exist
+require() {
+  hash "$1" 2> /dev/null || {
+    echo "Error: '$1' command not found! Exiting..."
+    exit 1
+  }
+}
+
+require git
+
+# Get the root directory of the Git repository
+if ! root=$(git rev-parse --show-toplevel 2> /dev/null); then
+  echo "Error: Not a Git repository. Exiting..."
+  exit 1
+fi
+
+echo "$root"
+exit 0

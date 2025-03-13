@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitpush
+# @created     : Thursday April 30, 2021 11:21:57 IST
+# @modified    : Improved error handling, efficiency, and readability
+######################################################################
+
+parentpath="$(dirname "${0}")"
+if [[ -f "${parentpath}/internet.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${parentpath}/internet.sh"
+fi
+
+require() {
+  hash "$1" 2> /dev/null || {
+    echo "Error: Required command '$1' not found! Exiting..."
+    exit 1
+  }
+}
+
+require git
+require cut
+require grep
+require xargs
+require sed
+
+RED="\033[0;31m"
+NC="\033[0m" # No Color
+
+# Function to extract branch name
+function branchName() {
+  echo "${1/#origin/}"
+}
+
+# Function to delete unmerged branches
+function delUnmerged() {
+  local branch="$1"
+  local dryRun="$2"
+
+  mapfile -t unmerged_branches < <(git branch -r --no-merged "$branch" | grep -vE "$branch|HEAD|->" | sed 's|origin/||')
+
+  if [[ ${#unmerged_branches[@]} -eq 0 ]]; then
+    echo "No unmerged branches to delete."
+    return
+  fi
+
+  if [[ "$dryRun" -eq 1 ]]; then
+    echo "Unmerged branches (dry run):"
+    printf "%s\n" "${unmerged_branches[@]}"
+  else
+    echo "Deleting unmerged branches..."
+    for b in "${unmerged_branches[@]}"; do
+      git push origin --delete "$b"
+    done
+  fi
+}
+
+# shellcheck disable=SC2317,SC2329
+# Function to handle exit messages
+function message() {
+  ret=$?
+  if [[ "$ret" -eq 0 ]]; then
+    echo "exit $ret from last command: $command"
+    git diff development main
+    git gc
+  else
+    echo -e "${RED}exit $ret from last command: $command${NC}"
+    echo -e "${RED}Returning to branch development${NC}"
+    git checkout development
+  fi
+  exit "$ret"
+}
+
+mainBranch="main"
+set -e
+command=""
+trap message EXIT
+
+# Fetch and prune branches
+git fetch --prune
+
+# List merged branches and delete them after confirmation
+mapfile -t merged_branches < <(git branch -r --merged "$mainBranch" | grep -vE "$mainBranch|development|HEAD|->")
+
+for var in "${merged_branches[@]}"; do
+  read -rp "Delete branch $var (y/N)? " answer
+  answer="${answer,,}"
+  if [[ "$answer" == "y" ]]; then
+    git push origin --delete "$(branchName "$var")"
+  fi
+done
+
+# Dry run first
+delUnmerged "$mainBranch" 1
+
+# Ask for confirmation before deleting unmerged branches
+read -rp "About to delete all unmerged branches. Are you sure (y/N)? " var
+var="${var,,}"
+if [[ "$var" == "y" ]]; then
+  delUnmerged "$mainBranch" 0
+fi
+
+exit 0

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+function require() {
+  hash "$@" || exit 127
+}
+require mvn
+function usage() {
+  echo "Usage: $0 projName packageName"
+  exit 1
+}
+if [ $# -ne 2 ]; then
+  usage
+fi
+projName="$1"
+packageName="$2"
+mvn archetype:generate -DgroupId="$packageName" \
+  -DartifactId="$projName" \
+  -DarchetypeArtifactId=maven-archetype-quickstart \
+  -DarchetypeVersion=1.4 \
+  -DinteractiveMode=false
+exit $?

@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : mvpackagedirs
+# @created     : Friday May 03, 2019 08:13:05 IST
+# @lastupdated : Sunday Mar 01, 2025 13:19:00 IST
+# @description : Moves Java source files into package-based directories.
+#                Assumes the package directive is on the first line.
+#                Creates 'package-info.java' if it does not exist.
+######################################################################
+
+# Function to check if required commands exist
+require() {
+  command -v "$1" > /dev/null 2>&1 || {
+    echo "Error: Required command '$1' not found." >&2
+    exit 127
+  }
+}
+
+# Ensure necessary commands are available
+require head
+require grep
+require mv
+require awk
+require sed
+require find
+
+pkgInfoFile="package-info.java"
+
+# Find all Java source files in the current directory
+find . -maxdepth 1 -name "*.java" -type f | while read -r file; do
+  # Extract the package name from the first line
+  package=$(sed -n '1s/package[[:space:]]\+\([^;]\+\);/\1/p' "$file")
+
+  # Skip files without a package directive
+  if [[ -z "$package" ]]; then
+    echo "Warning: Skipping $file (no package directive found)"
+    continue
+  fi
+
+  # Convert package name to directory structure
+  dir="${package//./\/}"
+
+  # Create package directory
+  mkdir -p "$dir"
+
+  # Move Java file to corresponding package directory
+  mv "$file" "$dir" || {
+    echo "Error: Failed to move $file to $dir" >&2
+    continue
+  }
+
+  # Create package-info.java if it does not exist
+  if [[ ! -e "$dir/$pkgInfoFile" ]]; then
+    echo "package $package;" > "$dir/$pkgInfoFile"
+    echo "Created $dir/$pkgInfoFile"
+  fi
+done
+
+echo "All Java files processed successfully."
+exit 0

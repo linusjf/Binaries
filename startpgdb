@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+# Function to check if a command exists
+function require() {
+  if ! command -v "$1" &> /dev/null; then
+    echo "Error: Required command '$1' not found. Please install it first." >&2
+    exit 127
+  fi
+}
+
+# Ensure pg_ctl is installed
+require pg_ctl
+
+# Ensure PREFIX is set, or provide a default path
+DB_PATH="${PREFIX}/var/lib/postgresql"
+
+# Check if the directory exists
+if [ ! -d "$DB_PATH" ]; then
+  echo "Error: Database directory '$DB_PATH' does not exist." >&2
+  exit 1
+fi
+
+# Start PostgreSQL
+echo "Starting PostgreSQL at '$DB_PATH'..."
+if pg_ctl -D "$DB_PATH" start; then
+  echo "PostgreSQL started successfully."
+else
+  echo "Error: Failed to start PostgreSQL." >&2
+  exit 1
+fi

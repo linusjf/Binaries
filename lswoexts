@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+hash find &> /dev/null || {
+  echo "find not found. Kindly install it." >&2
+  exit 127
+}
+
+find . -maxdepth 1 -type f ! -name '*.*' -printf '%f\n'

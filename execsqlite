@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+function require() {
+  hash "$@" || exit 127
+}
+require sqlite3
+if [ "$#" -ne 3 ]; then
+  echo "$0 db script"
+  echo "db - database name"
+  echo "script - sql script"
+  exit 1
+fi
+db="$1"
+script="$2"
+sqlite3 "$db" < "$script"
+exit "$?"

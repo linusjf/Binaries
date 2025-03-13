@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitmerge
+# @created     : Wednesday Feb 19, 2020 21:59:57 IST
+# @copyright   : Copyright (c) Linus Fernandes
+# @description :
+######################################################################
+
+RED="\033[0;31m"
+NC="\033[0m" # No Color
+
+function message() {
+  local ret=$?
+  if ((ret == 0)); then
+    git diff development main
+    git gc
+  else
+    printf "%sReturning to branch development%s\n" "$RED" "$NC"
+    git checkout development
+  fi
+  exit "$ret"
+}
+
+require() {
+  hash "$@" || exit
+}
+
+set -e
+require git
+
+mainBranch="main"
+
+trap message EXIT
+
+if ! git checkout "$mainBranch"; then
+  echo "Error checking out $mainBranch" >&2
+  exit 1
+fi
+
+if ! git config pull.rebase false; then
+  echo "Error configuring pull rebase" >&2
+  exit 1
+fi
+
+if ! git pull; then
+  echo "Error pulling changes" >&2
+  exit 1
+fi
+
+if ! git checkout development; then
+  echo "Error checking out development" >&2
+  exit 1
+fi
+
+if ! git merge "$mainBranch"; then
+  echo "Error merging changes" >&2
+  exit 1
+fi
+
+if ! gitpush; then
+  echo "Error pushing changes" >&2
+  exit 1
+fi

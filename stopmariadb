@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+function require() {
+  command -v "$1" > /dev/null 2>&1 || {
+    echo "Error: $1 is required but not found."
+    exit 127
+  }
+}
+
+require mysqladmin
+
+# Allow passing username as an argument or use a default
+MYSQL_USER="${1:-u0_a286}"
+
+echo "Shutting down MySQL server..."
+exec mysqladmin -u "$MYSQL_USER" -p shutdown

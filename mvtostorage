@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+# Function to check if required commands exist
+require() {
+  command -v "$1" > /dev/null 2>&1 || {
+    echo "Error: Required command '$1' not found." >&2
+    exit 127
+  }
+}
+
+# Ensure necessary commands are available
+require mkdir
+require find
+require mv
+
+# Check if at least 2 arguments are provided
+if [[ $# -lt 2 ]]; then
+  echo "Usage: $0 [-n|--dry-run] <destination_folder> <file_pattern>"
+  echo "  -n, --dry-run   Show what would be moved without actually moving files."
+  exit 1
+fi
+
+# Initialize variables
+DRY_RUN=false
+
+# Check for dry-run flag
+if [[ "$1" == "-n" || "$1" == "--dry-run" ]]; then
+  DRY_RUN=true
+  shift # Remove flag from arguments
+fi
+
+# Assign arguments
+DEST_FOLDER="${PREFIX}/home/storage/downloads/${1}"
+FILE_PATTERN="$2"
+
+# Create the destination directory
+mkdir -p "$DEST_FOLDER" || {
+  echo "Error: Failed to create directory $DEST_FOLDER" >&2
+  exit 1
+}
+
+if [[ "$DRY_RUN" == true ]]; then
+  echo "[DRY RUN] Files that would be moved to '$DEST_FOLDER':"
+  find . -type f -name "$FILE_PATTERN"
+else
+  # Find and move matching files
+  find . -type f -name "$FILE_PATTERN" -exec mv {} "$DEST_FOLDER" \; || {
+    echo "Error: Failed to move files" >&2
+    exit 1
+  }
+  echo "Files matching '$FILE_PATTERN' have been moved to '$DEST_FOLDER'."
+fi
+
+exit 0

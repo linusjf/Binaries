@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Active hooks
+require() {
+  hash "$@" || exit
+}
+require npx
+npx husky install
+# Add hook
+npx husky add .husky/commit-msg "npx --no -- commitlint --edit $1"

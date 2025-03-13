@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitpushfromrem
+# @created     : Friday Jan 27, 2023 04:19:00 IST
+# @modified    : Improved error handling, security, and readability
+# @description : Pushes changes between main and development branches
+######################################################################
+
+RED="\033[0;31m"
+GREEN="\033[0;32m"
+NC="\033[0m" # No Color
+
+# shellcheck disable=SC2317,SC2329
+function message() {
+  local ret=$?
+  if [ "$ret" -eq 0 ]; then
+    echo -e "${GREEN}✅ Successfully executed: $command${NC}"
+    if [ "$(git rev-parse development)" != "$(git rev-parse main)" ]; then
+      git diff development main
+    fi
+    git gc
+  else
+    echo -e "${RED}❌ Error ($ret) while executing: $command${NC}"
+    echo -e "${RED}Returning to branch development...${NC}"
+    git checkout development || echo -e "${RED}Failed to switch back to development branch.${NC}"
+  fi
+  exit "$ret"
+}
+
+usage() {
+  echo -e "${RED}Error: Invalid usage.${NC}"
+  echo "Usage: $0 main|development"
+  exit 127
+}
+
+require() {
+  hash "$@" 2> /dev/null || {
+    echo "Error: $1 not found! Exiting..."
+    exit 1
+  }
+}
+
+# Ensure script is inside a Git repository
+if ! root="$(git rev-parse --show-toplevel)"; then
+  echo -e "${RED}Error: Not a Git repository.${NC}"
+  exit 127
+fi
+
+cd "$root" || {
+  echo -e "${RED}Error: Failed to change directory.${NC}"
+  exit 127
+}
+
+set -e
+require git
+trap message EXIT
+
+# Ensure a branch argument is passed
+if [ $# -le 0 ]; then
+  usage
+fi
+
+mainBranch="main"
+developmentBranch="development"
+
+if [ "$1" != "$mainBranch" ] && [ "$1" != "$developmentBranch" ]; then
+  usage
+fi
+
+# Fetch latest changes
+command="git fetch"
+$command
+
+# Determine source and destination branches dynamically
+if [ "$1" == "$developmentBranch" ]; then
+  src="development"
+  dest="main"
+else
+  src="main"
+  dest="development"
+fi
+
+# Push local changes
+command="git push . origin/${src}:${src}"
+$command
+
+# Switch to destination branch and merge changes
+command="git checkout ${dest}"
+$command
+command="git merge --no-edit ${src}"
+$command
+
+# Push merged changes to remote
+command="git push -u origin ${dest}"
+$command
+
+# Switch back to source branch
+command="git checkout ${src}"
+$command
+
+exit 0

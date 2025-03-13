@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitit
+# @created     : Friday Feb 11, 2022 08:00:00 IST
+# @copyright   : Copyright (c) Linus Fernandes
+# @description :
+######################################################################
+set -e
+parentpath="$(dirname "$(readlink -f "$0")")"
+
+if [[ -e "${parentpath}/internet.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${parentpath}/internet.sh"
+fi
+
+gitadd && gitcommit && gitpush
+# shellcheck disable=2181
+if [ $? -ne 0 ]; then
+  printf "Error automating Git operations\n" >&2
+  exit 1
+fi
+
+exit 0

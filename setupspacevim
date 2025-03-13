@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+#######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : setupspacevim
+# @created     : Wednesday Mar 12, 2025 15:08:00 IST
+# @copyright   : Copyright (c) Linus Fernandes
+# @description :
+######################################################################
+set -e
+parentpath="$(dirname "$(readlink -f "$0")")"
+
+if [[ -e "${parentpath}/internet.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${parentpath}/internet.sh"
+fi
+
+# Set Bash version
+BASH_VERSION_REQUIRED="4.4"
+if [ "${BASH_VERSION}" \< "$BASH_VERSION_REQUIRED" ]; then
+  echo "Error: Bash version $BASH_VERSION_REQUIRED or higher is required."
+  exit 1
+fi
+
+# Define functions
+ensure_dependencies() {
+  for dependency in "$@"; do
+    if ! hash "$dependency" &> /dev/null; then
+      echo "Error: Dependency '$dependency' not found."
+      exit 1
+    fi
+  done
+}
+
+usage() {
+  echo "Usage: $0 [OPTION]"
+  echo ""
+  echo "Options:"
+  echo " -n Use Neovim instead of Vim"
+  echo " -h Display this help message"
+  echo " -t Use init.toml not init.vim"
+  echo ""
+  exit 0
+}
+
+# Define variables
+HOME_DIR="$HOME"
+SPACEVIM_INSTALL_SCRIPT="https://spacevim.org/install.sh"
+VIM_EXECUTABLE="vim"
+use_toml=false
+
+# Parse command-line options
+while getopts ":hnt" opt; do
+  case $opt in
+    n) VIM_EXECUTABLE="nvim" ;;
+    h) usage ;;
+    t) use_toml=true ;;
+    \?)
+      echo "Invalid option: -$OPTARG"
+      usage
+      ;;
+  esac
+done
+
+# Ensure dependencies
+ensure_dependencies curl "$VIM_EXECUTABLE" nvim
+
+# Remove existing SpaceVim directories
+for dir in "${HOME_DIR}/.vim" "${HOME_DIR}/.config/nvim" "${HOME_DIR}/.cache/SpaceVim" "${HOME_DIR}/.SpaceVim" "${HOME_DIR}/.SpaceVim.d"; do
+  if [ -d "$dir" ]; then
+    rm -rf "$dir"
+  fi
+done
+
+# Install SpaceVim
+curl -sLf "$SPACEVIM_INSTALL_SCRIPT" | bash
+
+# Create .SpaceVim.d directory
+"$VIM_EXECUTABLE"
+
+# Delete SpaceVim default init.toml
+# We want to use our init instead
+if [ -f "${HOME_DIR}/.SpaceVim.d/init.toml" ]; then
+  mv "${HOME_DIR}/.SpaceVim.d/init.toml" "${HOME_DIR}/.SpaceVim.d/init.toml.bak"
+fi
+
+# Configure SpaceVim
+if "$use_toml"; then
+  if [ -f "${HOME_DIR}/Configurations/init.toml" ]; then
+    ln -sf "${HOME_DIR}/Configurations/init.toml" "${HOME_DIR}/.SpaceVim.d/init.toml"
+  else
+    echo "Error: Configuration file '${HOME_DIR}/Configurations/init.toml' not found."
+    exit 1
+  fi
+else
+  if [ -f "${HOME_DIR}/Configurations/init.vim" ]; then
+    ln -sf "${HOME_DIR}/Configurations/init.vim" "${HOME_DIR}/.SpaceVim.d/init.vim"
+  else
+    echo "Error: Configuration file '${HOME_DIR}/Configurations/init.vim' not found."
+    exit 1
+  fi
+fi
+
+# Exit successfully
+exit 0
