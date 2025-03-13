@@ -96,6 +96,9 @@ fi
 if "$use_toml"; then
   if [ -f "${HOME_DIR}/Configurations/init.toml" ]; then
     ln -sf "${HOME_DIR}/Configurations/init.toml" "${HOME_DIR}/.SpaceVim.d/init.toml"
+    if [ -d "${HOME_DIR}/Configurations/autoload" ]; then
+      ln -sf "${HOME_DIR}/Configurations/autoload" "${HOME_DIR}/.SpaceVim.d/autoload"
+    fi
   else
     echo "Error: Configuration file '${HOME_DIR}/Configurations/init.toml' not found."
     exit 1
