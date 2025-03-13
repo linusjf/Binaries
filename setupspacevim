@@ -7,6 +7,14 @@
 # @copyright   : Copyright (c) Linus Fernandes
 # @description :
 ######################################################################
+echo "INFO: Before proceeding, please clone the repository https://github.com/linusjf/Configurations to ~/Configurations."
+echo "INFO: This repository contains the necessary configuration files for SpaceVim."
+read -p "Continue anyway? (y/n) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]; then
+  exit 1
+fi
+
 set -e
 parentpath="$(dirname "$(readlink -f "$0")")"
 
