@@ -41,7 +41,7 @@ mainBranch="main"
 trap 'ret=$?; message $ret' EXIT
 
 # Ensure latest changes
-git pull --rebase
+git pull --rebase --reapply-cherry-picks
 
 # check if local branch development exists.
 # If not, create it
@@ -56,7 +56,7 @@ git push origin development
 # Switch to main branch and merge/rebase changes
 git switch "$mainBranch"
 git rebase development # Use rebase instead of merge for cleaner history
-git pull --rebase
+git pull --rebase --reapply-cherry-picks
 git push origin "$mainBranch"
 
 # Switch back to development and update it
