@@ -45,6 +45,6 @@ git pull --rebase
 
 git switch "$mainBranch"
 git fetch --all
-git pull --rebase --reapply-cherry-picks
+git pull --rebase
 
 git switch development
