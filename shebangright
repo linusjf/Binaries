@@ -1,22 +1,39 @@
 #!/usr/bin/env bash
 
+# Define a function to check for dependencies
 function require() {
-  hash "$@" || exit 127
+  if ! command -v "$@" &> /dev/null; then
+    printf "Error: Dependency '%s' not found.\n" "$@"
+    exit 1
+  fi
 }
 
+# Enable exit-on-error mode
 set -e
+
+# Check for sed dependency
 require sed
 
+# Check if any files are specified
 if [ $# -eq 0 ]; then
-  printf "Error: no files specified\n" >&2
+  printf "Error: No files specified.\n" >&2
   exit 1
 fi
 
+# Iterate over the specified files
 for file in "$@"; do
-  if ! sed -i 's|bin/bash|usr/bin/env bash|g' "$file"; then
-    printf "Error modifying %s\n" "$file" >&2
+  # Check if the file exists and is readable
+  if [ ! -f "$file" ] || [ ! -r "$file" ]; then
+    printf "Error: File '%s' does not exist or is not readable.\n" "$file" >&2
+    exit 1
+  fi
+
+  # Replace bin/bash with usr/bin/env bash using sed
+  if ! sed -i 's|bin/bash|usr/bin/env bash|' "$file"; then
+    printf "Error: Failed to modify file '%s': %s\n" "$file" "$?" >&2
     exit 1
   fi
 done
 
+# Exit successfully
 exit 0
