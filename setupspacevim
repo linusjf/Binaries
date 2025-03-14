@@ -30,15 +30,10 @@ if [ "${BASH_VERSION}" \< "$BASH_VERSION_REQUIRED" ]; then
   exit 1
 fi
 
-# Define functions
-ensure_dependencies() {
-  for dependency in "$@"; do
-    if ! hash "$dependency" &> /dev/null; then
-      echo "Error: Dependency '$dependency' not found."
-      exit 1
-    fi
-  done
-}
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
 
 usage() {
   echo "Usage: $0 [OPTION]"
@@ -71,7 +66,7 @@ while getopts ":hnt" opt; do
 done
 
 # Ensure dependencies
-ensure_dependencies curl "$VIM_EXECUTABLE" rm mv
+require curl "$VIM_EXECUTABLE" rm mv
 
 # Remove existing SpaceVim directories
 for dir in "${HOME_DIR}/.vim" "${HOME_DIR}/.config/nvim" "${HOME_DIR}/.cache/SpaceVim" "${HOME_DIR}/.SpaceVim" "${HOME_DIR}/.SpaceVim.d"; do
