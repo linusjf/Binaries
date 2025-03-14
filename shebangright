@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 
-# Define a function to check for dependencies
-function require() {
-  if ! command -v "$@" &> /dev/null; then
-    printf "Error: Dependency '%s' not found.\n" "$@"
-    exit 1
-  fi
-}
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
 
 # Enable exit-on-error mode
 set -e
