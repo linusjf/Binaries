@@ -34,12 +34,10 @@ usage() {
   exit 127
 }
 
-require() {
-  hash "$@" 2> /dev/null || {
-    echo "Error: $1 not found! Exiting..."
-    exit 1
-  }
-}
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
 
 # Ensure script is inside a Git repository
 if ! root="$(git rev-parse --show-toplevel)"; then

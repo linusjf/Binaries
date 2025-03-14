@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Active hooks
-require() {
-  hash "$@" || exit
-}
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
 require npx
 npx husky install
 # Add hook

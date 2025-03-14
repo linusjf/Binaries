@@ -12,18 +12,12 @@ if [[ -f "${parentpath}/internet.sh" ]]; then
   source "${parentpath}/internet.sh"
 fi
 
-require() {
-  hash "$1" 2> /dev/null || {
-    echo "Error: Required command '$1' not found! Exiting..."
-    exit 1
-  }
-}
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
 
-require git
-require cut
-require grep
-require xargs
-require sed
+require git cut grep xargs sed
 
 RED="\033[0;31m"
 NC="\033[0m" # No Color

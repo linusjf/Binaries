@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-hash find &> /dev/null || {
-  echo "find not found. Kindly install it." >&2
-  exit 127
-}
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
+
+require find
 
 find . -maxdepth 1 -type f ! -name '*.*' -printf '%f\n'

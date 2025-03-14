@@ -19,6 +19,13 @@ usage() {
   exit 1
 }
 
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
+
+require mapfile find rm
+
 dry_run=false
 print=false
 while [ $# -gt 0 ]; do

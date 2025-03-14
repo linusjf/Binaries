@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-function require() {
-  hash "$@" || exit 127
-}
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
+
 require mysql rm
 if [ $# -ne 3 ]; then
   echo "usage: $0 user pwd"

@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 
-require() {
-  if ! command -v "$1" &> /dev/null; then
-    echo "Error: Required command '$1' not found. Please install it." >&2
-    exit 127
-  fi
-}
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
 
 require fdfind
 fdfind -tx -d 1

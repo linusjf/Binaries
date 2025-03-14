@@ -23,9 +23,10 @@ function message() {
   exit "$ret"
 }
 
-require() {
-  hash "$@" || exit
-}
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
 
 parentpath="$(dirname "$0")"
 if test -e "${parentpath}/internet.sh"; then
