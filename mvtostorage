@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
 
-# Function to check if required commands exist
-require() {
-  command -v "$1" > /dev/null 2>&1 || {
-    echo "Error: Required command '$1' not found." >&2
-    exit 127
-  }
-}
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
 
 # Ensure necessary commands are available
-require mkdir
-require find
-require mv
+require mkdir find mv
 
 # Check if at least 2 arguments are provided
 if [[ $# -lt 2 ]]; then
