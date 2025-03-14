@@ -1,16 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-# Function to check required commands
-function require() {
-  for cmd in "$@"; do
-    if ! command -v "$cmd" &> /dev/null; then
-      echo "Error: Required command '$cmd' not found. Please install it." >&2
-      exit 127
-    fi
-  done
-}
-
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
 # Check required commands
 require mkdir initdb pg_ctl createuser createdb
 
