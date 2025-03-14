@@ -1,14 +1,9 @@
 #!/usr/bin/env bash
 
-# Function to check for required commands
-require() {
-  for cmd in "$@"; do
-    if ! command -v "$cmd" &> /dev/null; then
-      echo "Error: Required command '$cmd' not found." >&2
-      exit 1
-    fi
-  done
-}
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
 
 # Ensure necessary commands are available
 require find xargs basename shch
