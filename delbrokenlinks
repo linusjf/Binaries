@@ -18,6 +18,7 @@ usage() {
   echo "  -p, --print Print list of broken links"
   exit 1
 }
+set -euo pipefail
 
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
