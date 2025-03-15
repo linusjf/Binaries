@@ -7,16 +7,15 @@ source "$SCRIPT_DIR/require.sh"
 
 require basename start-stop-daemon killall
 BIND=127.0.0.1:9000
-PREFIX=${PREFIX:-""}
-if [[ -z "$PREFIX" ]]; then
+if [[ -z "$PREFIX "]]; then
   USER=root
 else
   USER=u0_a286
-fi
 PHP_FCGI_CHILDREN=15
 PHP_FCGI_MAX_REQUESTS=1000
 
 USR="${PREFIX:-"/usr"}"
+
 PHP_CGI="${USR}/bin/php-cgi"
 PHP_CGI_NAME="$(basename "$PHP_CGI")"
 PHP_CGI_ARGS="- USER=$USER PATH=${USR}/bin PHP_FCGI_CHILDREN=$PHP_FCGI_CHILDREN PHP_FCGI_MAX_REQUESTS=$PHP_FCGI_MAX_REQUESTS $PHP_CGI -b $BIND"
