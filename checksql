@@ -9,7 +9,7 @@ require rm sqlcheck tee
 
 declare -i exitCode=0
 
-rm ./check.errors || {
+rm -f ./check.errors || {
   echo "Error removing check.errors"
   exit 1
 }
