@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-
+set -euo pipefail
 # Cleanup, version 3
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/require.sh"
 
-set -e
 require mv tail dirname readlink basename
 
 MY_DIR="$(dirname "$(readlink -f "$0")")"
@@ -20,7 +19,7 @@ DEBUG=false
 # shellcheck disable=SC1091
 source "${MY_DIR}/debugon.sh"
 
-LOG_DIR="${PREFIX}/var/log"
+LOG_DIR="${PREFIX:-""}/var/log"
 
 # Only users with $UID 0 have root privileges.
 ROOT_UID=0
