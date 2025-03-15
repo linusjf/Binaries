@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-
+set -euo pipefail
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/require.sh"
-set -e
 # Ensure `rm` command exists
 require rm
 
 # Remove the crond PID file
-rm -f "${PREFIX}/var/run/crond.pid"
+rm -f "${PREFIX:-""}/var/run/crond.pid"
