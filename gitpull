@@ -33,7 +33,7 @@ if test -e "${parentpath}/internet.sh"; then
   source "${parentpath}/internet.sh"
 fi
 
-set -e
+set -euo pipefail
 require git
 
 mainBranch="main"

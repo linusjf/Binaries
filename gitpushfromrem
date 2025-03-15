@@ -33,6 +33,7 @@ usage() {
   echo "Usage: $0 main|development"
   exit 127
 }
+set -euo pipefail
 
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
@@ -50,7 +51,6 @@ cd "$root" || {
   exit 127
 }
 
-set -e
 require git
 trap message EXIT
 

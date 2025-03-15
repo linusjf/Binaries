@@ -6,7 +6,7 @@
 # @copyright   : Copyright (c) Linus Fernandes
 # @description :
 ######################################################################
-set -e
+set -euo pipefail
 parentpath="$(dirname "$(readlink -f "$0")")"
 
 if [[ -e "${parentpath}/internet.sh" ]]; then

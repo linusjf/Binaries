@@ -5,6 +5,7 @@
 # @created     : Thursday May 02, 2019 21:09:20 IST
 # @modified    : Improved error handling, security, and compatibility
 ######################################################################
+set -euo pipefail
 
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")

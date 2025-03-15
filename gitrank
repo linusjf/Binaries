@@ -6,6 +6,7 @@
 # @modified    : Improved error handling and security
 # @description : Ranks Git contributors by commit count
 ######################################################################
+set -euo pipefail
 
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")

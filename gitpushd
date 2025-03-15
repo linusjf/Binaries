@@ -19,7 +19,7 @@ if [[ -e "${parentpath}/internet.sh" ]]; then
   source "${parentpath}/internet.sh"
 fi
 
-set -e
+set -euo pipefail
 require git
 
 RED="\033[0;31m"

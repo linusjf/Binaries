@@ -5,17 +5,13 @@
 # @created     : Thursday April 30, 2021 11:21:57 IST
 # @modified    : Improved error handling, efficiency, and readability
 ######################################################################
-
-parentpath="$(dirname "${0}")"
-if [[ -f "${parentpath}/internet.sh" ]]; then
-  # shellcheck disable=SC1091
-  source "${parentpath}/internet.sh"
-fi
-
-# Source the require.sh file
+set -euo pipefail
+# Source the internet.sh and require.sh files
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
+for file in "${SCRIPT_DIR}/internet.sh" source "$SCRIPT_DIR/require.sh"; do
+  # shellcheck disable=SC1091,SC1090
+  [[ -f "$file" ]] && source "$file"
+done
 
 require git cut grep xargs sed
 
