@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+set -euo pipefail
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
@@ -9,7 +9,7 @@ source "$SCRIPT_DIR/require.sh"
 require mkdir mysql_install_db
 
 # Create MySQL configuration directory safely
-CONFIG_DIR="${PREFIX}/etc/my.cnf.d"
+CONFIG_DIR="${PREFIX:-""}/etc/my.cnf.d"
 if [[ ! -d "$CONFIG_DIR" ]]; then
   mkdir -p "$CONFIG_DIR" || {
     echo "Error: Failed to create directory $CONFIG_DIR" >&2
@@ -21,7 +21,7 @@ else
 fi
 
 # Initialize MySQL database if it doesn't already exist
-DB_DIR="${PREFIX}/var/lib/mysql"
+DB_DIR="${PREFIX:-""}/var/lib/mysql"
 if [[ -d "$DB_DIR/mysql" ]]; then
   echo "MySQL database directory already exists: $DB_DIR"
 else

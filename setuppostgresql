@@ -11,7 +11,7 @@ require mkdir initdb pg_ctl createuser createdb
 PREFIX="${PREFIX:-/usr/local}"
 
 # Ensure PostgreSQL data directory exists
-PGDATA="${PREFIX}/var/lib/postgresql"
+PGDATA="${PREFIX:-""}/var/lib/postgresql"
 mkdir -p "$PGDATA"
 
 # Initialize the database
