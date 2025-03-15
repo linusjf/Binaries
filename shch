@@ -39,12 +39,12 @@ check() {
   f="$(basename "$1")"
 
   if checkbashisms "$f"; then
-    if ! curl --data-urlencode "script@$1" -sS 'https://www.shellcheck.net/shellcheck.php' > "${PREFIX}/tmp/${f}.json"; then
+    if ! curl --data-urlencode "script@$1" -sS 'https://www.shellcheck.net/shellcheck.php' > "${PREFIX:-""}/tmp/${f}.json"; then
       echo "Error: Failed to connect to ShellCheck API" >&2
       return 1
     fi
-    if jq -e '. | length > 0' "${PREFIX}/tmp/${f}.json" &> /dev/null; then
-      mv "${PREFIX}/tmp/${f}.json" "${1}.out"
+    if jq -e '. | length > 0' "${PREFIX:-""}/tmp/${f}.json" &> /dev/null; then
+      mv "${PREFIX:-""}/tmp/${f}.json" "${1}.out"
       return 1
     else
       return 0

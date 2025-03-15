@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/require.sh"
 
 require pg_ctl
 
-PG_DATA_DIR="${PREFIX}/var/lib/postgresql"
+PG_DATA_DIR="${PREFIX:-""}/var/lib/postgresql"
 
 echo "Stopping PostgreSQL server..."
 exec pg_ctl -D "$PG_DATA_DIR" stop
