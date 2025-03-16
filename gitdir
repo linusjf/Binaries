@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-
+set -euo pipefail
+shopt -s inherit_errexit
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/require.sh"
 
 require git readlink
-set -euo pipefail
 if ! git_dir=$(readlink -f "$(git rev-parse --git-dir)"); then
   echo "Error retrieving Git repository directory" >&2
   exit 1

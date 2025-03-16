@@ -6,6 +6,7 @@
 # @modified    : Improved error handling, efficiency, and readability
 ######################################################################
 set -euo pipefail
+shopt -s inherit_errexit
 # Source the internet.sh and require.sh files
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 for file in "${SCRIPT_DIR}/internet.sh" source "$SCRIPT_DIR/require.sh"; do

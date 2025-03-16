@@ -6,7 +6,8 @@
 # @copyright   : Copyright (c) Linus Fernandes
 # @description : Sync and push Git branches
 ######################################################################
-
+set -euo pipefail
+shopt -s inherit_errexit
 RED="\033[0;31m"
 NC="\033[0m" # No Color
 
@@ -34,7 +35,6 @@ if test -e "${parentpath}/internet.sh"; then
   source "${parentpath}/internet.sh"
 fi
 
-set -euo pipefail
 require git
 
 mainBranch="main"
