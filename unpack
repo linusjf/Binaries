@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # unpack: Extract common file formats
 set -euo pipefail
+shopt -s inherit_errexit
 # Display usage if no parameters given
 if [[ $# -eq 0 ]]; then
   echo "Usage: ${0##*/} <archive(s)> - extract common file formats"
