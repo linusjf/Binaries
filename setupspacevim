@@ -75,7 +75,9 @@ for dir in "${HOME_DIR}/.vim" "${HOME_DIR}/.config/nvim" "${HOME_DIR}/.cache/Spa
 done
 
 # Install SpaceVim
-curl -sLf "$SPACEVIM_INSTALL_SCRIPT" | bash
+curl -sLfO "$SPACEVIM_INSTALL_SCRIPT"
+chmod +x ./install.sh
+./install.sh --checkRequirements && ./install.sh
 
 # Create .SpaceVim.d directory
 "$VIM_EXECUTABLE"
@@ -106,5 +108,6 @@ else
   fi
 fi
 
+rm -f ./install.sh
 # Exit successfully
 exit 0
