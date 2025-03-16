@@ -9,6 +9,7 @@
 #                Creates 'package-info.java' if it does not exist.
 ######################################################################
 set -euo pipefail
+shopt -s inherit_errexit
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091

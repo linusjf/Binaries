@@ -8,6 +8,7 @@
 # @description : Creates package directories for one or more Java packages.
 ######################################################################
 set -euo pipefail
+shopt -s inherit_errexit
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
