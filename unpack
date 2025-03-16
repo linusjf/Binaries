@@ -14,7 +14,7 @@ SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 source "$SCRIPT_DIR/require.sh"
 
 # Required programs
-require 7z unrar unzip tar bunzip2 ar gunzip uncompress
+require 7z unrar unzip tar bunzip2 ar gunzip uncompress lzma xz zstd cpio arj lha
 
 # Loop through provided files
 for f in "$@"; do
@@ -36,6 +36,12 @@ for f in "$@"; do
     *.rar) unrar x "$f" ;;
     *.zip) unzip "$f" ;;
     *.Z) uncompress "$f" ;;
+    *.lzma | *.tlzma) lzma -d "$f" ;;
+    *.xz) xz -d "$f" ;;
+    *.zst) zstd -d "$f" ;;
+    *.cpio) cpio -idmv < "$f" ;;
+    *.arj) arj x "$f" ;;
+    *.lha | *.lzh) lha x "$f" ;;
     *) echo "Error: Unsupported file format for '$f'" ;;
   esac
 done
