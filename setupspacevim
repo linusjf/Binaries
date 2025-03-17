@@ -68,7 +68,13 @@ done
 require curl "$VIM_EXECUTABLE" rm mv
 
 # Remove existing SpaceVim directories
-for dir in "${HOME_DIR}/.vim" "${HOME_DIR}/.config/nvim" "${HOME_DIR}/.cache/SpaceVim" "${HOME_DIR}/.SpaceVim" "${HOME_DIR}/.SpaceVim.d"; do
+for dir in "${HOME_DIR}/.vim" "${HOME_DIR}/.config/nvim"; do
+  if [[ -d "$dir" ]] && [[ "$(readlink "${dir}")" =~ \.?SpaceVim$ ]]; then
+    rm "$dir"
+  fi
+done
+
+for dir in "${HOME_DIR}/.cache/SpaceVim" "${HOME_DIR}/.SpaceVim" "${HOME_DIR}/.SpaceVim.d"; do
   if [ -d "$dir" ]; then
     rm -rf "$dir"
   fi
