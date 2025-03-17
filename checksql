@@ -6,19 +6,51 @@ SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/require.sh"
 
+# This script checks SQL files in the current directory for potential issues
+# using the sqlcheck tool and outputs results to check.errors
+
 require rm sqlcheck tee
 
 declare -i exitCode=0
+declare -i fileCount=0
 
-rm -f ./check.errors || {
-  echo "Error removing check.errors"
-  exit 1
-}
+# Remove previous error file if it exists
+if [[ -f ./check.errors ]]; then
+  rm -f ./check.errors || {
+    echo "Error: Unable to remove existing check.errors file"
+    exit 1
+  }
+fi
 
-for f in *.sql; do
-  [[ -e "$f" ]] || continue
+# Check if any SQL files exist
+shopt -s nullglob
+sqlFiles=(*.sql)
+shopt -u nullglob
+
+if [[ ${#sqlFiles[@]} -eq 0 ]]; then
+  echo "Warning: No SQL files found in the current directory"
+  exit 0
+fi
+
+echo "Checking SQL files for potential issues..."
+
+for f in "${sqlFiles[@]}"; do
+  echo "Analyzing $f..."
   sqlcheck -c -v -f "$f" | tee -a check.errors
-  ((exitCode |= $?))
+  lastExitCode=$?
+  ((exitCode |= lastExitCode))
+  ((fileCount++))
+  
+  if [[ $lastExitCode -ne 0 ]]; then
+    echo "Issues found in $f"
+  fi
 done
+
+echo "Completed checking $fileCount SQL file(s)"
+if [[ $exitCode -eq 0 ]]; then
+  echo "No issues found"
+else
+  echo "Issues found - check the check.errors file for details"
+fi
 
 exit "$exitCode"
