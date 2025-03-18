@@ -2,15 +2,15 @@
 set -euo pipefail
 shopt -s inherit_errexit
 # Cleanup logs script - truncates log files to save disk space
-# Usage: cleanuplogs [number-of-lines]
-# Version 3.1
+# Usage: cleanuplogs [number-of-lines] [--dry-run]
+# Version 3.2
 
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/require.sh"
 
-require mv tail dirname readlink basename
+require mv tail dirname readlink basename du
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/debug.sh"
@@ -38,19 +38,47 @@ E_NOTROOT=87
 # Non-numerical argument (bad argument format).
 E_WRONGARGS=85
 
+# Dry run flag
+DRY_RUN=false
+
 function usage() {
   cat << EOF
-Usage: $(basename "$0") [lines-to-keep]
+Usage: $(basename "$0") [lines-to-keep] [--dry-run]
 
 Truncates log files to save disk space, keeping only the specified
 number of most recent lines. Default is 50 lines if not specified.
 
 Options:
   -h, --help    Display this help message and exit
+  --dry-run     Show what would be done without actually making changes
 
-Must be run as root.
+Must be run as root (except in dry-run mode).
 EOF
 }
+
+# Parse arguments
+LINES=50
+for arg in "$@"; do
+  case "$arg" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      ;;
+    *[!0-9]*)
+      if [[ "$arg" != "--dry-run" ]]; then
+        printf "Error: Invalid argument '%s'\n" "$arg" >&2
+        usage
+        exit "$E_WRONGARGS"
+      fi
+      ;;
+    *)
+      LINES="$arg"
+      ;;
+  esac
+done
 
 # Display help message
 if [[ "${1-""}" == "-h" || "${1-""}" == "--help" ]]; then
@@ -58,25 +86,11 @@ if [[ "${1-""}" == "-h" || "${1-""}" == "--help" ]]; then
   exit 0
 fi
 
-# Run as root, of course.
-if ((UID != ROOT_UID)); then
+# Run as root, of course (except in dry-run mode).
+if ((UID != ROOT_UID)) && [[ "$DRY_RUN" == "false" ]]; then
   printf "Error: Must be root to run this script.\n" >&2
   exit "$E_NOTROOT"
 fi
-
-case "${1-""}" in
-  "")
-    lines=50
-    ;;
-  *[!0-9]*)
-    printf "Error: Invalid argument '%s'\n" "$1" >&2
-    usage
-    exit "$E_WRONGARGS"
-    ;;
-  *)
-    lines="$1"
-    ;;
-esac
 
 if [[ ! -d "$LOG_DIR" ]]; then
   printf "Error: Log directory '%s' does not exist.\n" "$LOG_DIR" >&2
@@ -88,20 +102,70 @@ cd "$LOG_DIR" || {
   exit "$E_XCD"
 }
 
+# Function to get file size in human-readable format
+get_file_size() {
+  du -h "$1" | cut -f1
+}
+
+# Function to calculate size difference after truncation
+calculate_size_diff() {
+  local file="$1"
+  local lines="$2"
+  local original_size
+  local new_size
+
+  original_size=$(get_file_size "$file")
+
+  # Create temporary file with truncated content
+  tail -n "$lines" "$file" > "${file}.temp"
+  new_size=$(get_file_size "${file}.temp")
+
+  # Clean up temp file
+  rm -f "${file}.temp"
+
+  echo "Original: ${original_size}, After truncation: ${new_size}"
+}
+
+if [[ "$DRY_RUN" == "true" ]]; then
+  printf "DRY RUN MODE: No changes will be made\n\n"
+  printf "Log directory: %s\n\n" "$LOG_DIR"
+fi
+
 # Save last section of pacman log file.
 if [[ -f pacman.log ]]; then
-  tail -n "$lines" pacman.log > pacman.temp \
-    && mv pacman.temp pacman.log
-  printf "Truncated pacman.log to %d lines.\n" "$lines"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    printf "Would truncate pacman.log to %d lines\n" "$LINES"
+    size_info=$(calculate_size_diff "pacman.log" "$LINES")
+    printf "Size change: %s\n\n" "$size_info"
+  else
+    tail -n "$LINES" pacman.log > pacman.temp \
+      && mv pacman.temp pacman.log
+    printf "Truncated pacman.log to %d lines.\n" "$LINES"
+  fi
 fi
 
 # ': > wtmp' and '> wtmp' have the same effect.
 if [[ -f wtmp ]]; then
-  : > wtmp
-  printf "Cleared wtmp file.\n"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    wtmp_size=$(get_file_size "wtmp")
+    printf "Would clear wtmp file (current size: %s)\n\n" "$wtmp_size"
+  else
+    : > wtmp
+    printf "Cleared wtmp file.\n"
+  fi
 fi
 
-printf "Log files cleaned up successfully.\n"
+if [[ "$DRY_RUN" == "true" ]]; then
+  printf "Other log files in %s that could be processed:\n" "$LOG_DIR"
+  for log_file in *.log; do
+    if [[ -f "$log_file" && "$log_file" != "pacman.log" ]]; then
+      printf "- %s (current size: %s)\n" "$log_file" "$(get_file_size "$log_file")"
+    fi
+  done
+  printf "\nTo actually perform these operations, run without --dry-run\n"
+else
+  printf "Log files cleaned up successfully.\n"
+fi
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/debugoff.sh"
