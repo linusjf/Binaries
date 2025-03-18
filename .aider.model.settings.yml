@@ -1,9 +1,9 @@
-- name: openrouter/anthropic/claude-3.7-sonnet
+- name: openrouter/deepseek-ai/deepseek-coder-33b-instruct
   extra_params:
     extra_body:
       provider:
-        # Only use these providers, in this order
-        order: ["Anthropic", "Together"]
+        # Prioritize DeepSeek for best value for money
+        order: ["DeepSeek"]
         # Don't fall back to other providers
         allow_fallbacks: false
         # Skip providers that may train on inputs
