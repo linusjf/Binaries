@@ -2,3 +2,5 @@
 stopwords
 *.out
 .aider*
+!.aider.conf.yml
+!.aider.model.settings.yml
