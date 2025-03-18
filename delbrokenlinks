@@ -63,10 +63,21 @@ all_links=no
 # shellcheck disable=SC2162
 for i in "${!broken_links[@]}"; do
   link="${broken_links[$i]}"
+  
+  if [ "$all_links" = "yes" ]; then
+    if "$dry_run"; then
+      echo "Would delete $link"
+    else
+      rm -f "$link"
+      echo "Deleted $link"
+    fi
+    continue
+  fi
+  
   read -p "Delete $link? (yes/no/all/abort): " response
   case $response in
     y | yes)
-      if [[ "$dry_run" ]]; then
+      if "$dry_run"; then
         echo "Would delete $link"
       else
         rm -f "$link"
@@ -75,7 +86,7 @@ for i in "${!broken_links[@]}"; do
       ;;
     all)
       all_links=yes
-      if [[ "$dry_run" ]]; then
+      if "$dry_run"; then
         echo "Would delete $link"
       else
         rm -f "$link"
@@ -83,19 +94,11 @@ for i in "${!broken_links[@]}"; do
       fi
       ;;
     abort)
+      echo "Operation aborted."
       exit 1
       ;;
-    *) ;;
+    *) 
+      echo "Skipping $link"
+      ;;
   esac
-  if [ "$all_links" = "yes" ]; then
-    for remaining_link in "${broken_links[@]:${i}}"; do
-      if [[ "$dry_run" = "yes" ]]; then
-        echo "Would delete $remaining_link"
-      else
-        rm -f "$remaining_link"
-        echo "Deleted $remaining_link"
-      fi
-    done
-    break
-  fi
 done
