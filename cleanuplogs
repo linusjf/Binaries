@@ -12,16 +12,14 @@ source "$SCRIPT_DIR/require.sh"
 
 require mv tail dirname readlink basename
 
-MY_DIR="$(dirname "$(readlink -f "$0")")"
-
 # shellcheck disable=SC1091
-source "${MY_DIR}/debug.sh"
+source "${SCRIPT_DIR}/debug.sh"
 
 # shellcheck disable=SC2034
 DEBUG=false
 
 # shellcheck disable=SC1091
-source "${MY_DIR}/debugon.sh"
+source "${SCRIPT_DIR}/debugon.sh"
 
 LOG_DIR="${PREFIX:-""}/var/log"
 
@@ -40,8 +38,7 @@ E_NOTROOT=87
 # Non-numerical argument (bad argument format).
 E_WRONGARGS=85
 
-# Display help message
-if [[ "${1-${LINES}}" == "-h" || "${1-${LINES}}" == "--help" ]]; then
+function usage() {
   cat << EOF
 Usage: $(basename "$0") [lines-to-keep]
 
@@ -53,6 +50,11 @@ Options:
 
 Must be run as root.
 EOF
+}
+
+# Display help message
+if [[ "${1-""}" == "-h" || "${1-""}" == "--help" ]]; then
+  usage
   exit 0
 fi
 
@@ -62,13 +64,13 @@ if ((UID != ROOT_UID)); then
   exit "$E_NOTROOT"
 fi
 
-case "$1" in
+case "${1-""}" in
   "")
     lines=50
     ;;
   *[!0-9]*)
     printf "Error: Invalid argument '%s'\n" "$1" >&2
-    printf "Usage: %s [lines-to-keep]\n" "$(basename "$0")" >&2
+    usage
     exit "$E_WRONGARGS"
     ;;
   *)
@@ -102,6 +104,6 @@ fi
 printf "Log files cleaned up successfully.\n"
 
 # shellcheck disable=SC1091
-source "${MY_DIR}/debugoff.sh"
+source "${SCRIPT_DIR}/debugoff.sh"
 
 exit 0
