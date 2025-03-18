@@ -5,17 +5,10 @@
 # @file        : setupspacevim
 # @created     : Wednesday Mar 12, 2025 15:08:00 IST
 # @copyright   : Copyright (c) Linus Fernandes
-# @description :
+# @description : Script to set up SpaceVim with custom configurations
 ######################################################################
 set -euo pipefail
 shopt -s inherit_errexit
-echo "INFO: Before proceeding, please clone the repository https://github.com/linusjf/Configurations to ~/Configurations."
-echo "INFO: This repository contains the necessary configuration files for SpaceVim."
-read -p "Continue anyway? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]; then
-  exit 1
-fi
 
 parentpath="$(dirname "$(readlink -f "$0")")"
 
@@ -33,6 +26,24 @@ fi
 
 # shellcheck disable=SC1091
 source "$parentpath/require.sh"
+
+# Check if Configurations repository exists
+if [[ ! -d "${HOME}/Configurations" ]]; then
+  echo "ERROR: The repository https://github.com/linusjf/Configurations is not found at ~/Configurations."
+  echo "INFO: This repository contains the necessary configuration files for SpaceVim."
+  read -p "Would you like to clone it now? (y/n) " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    require git
+    git clone https://github.com/linusjf/Configurations "${HOME}/Configurations"
+  else
+    read -p "Continue anyway? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+      exit 1
+    fi
+  fi
+fi
 
 usage() {
   echo "Usage: $0 [OPTION]"
@@ -65,25 +76,49 @@ while getopts ":hnt" opt; do
 done
 
 # Ensure dependencies
-require curl "$VIM_EXECUTABLE" rm mv
+require curl "$VIM_EXECUTABLE" rm mv ln readlink
 
-# Remove existing SpaceVim directories
-for dir in "${HOME_DIR}/.vim" "${HOME_DIR}/.config/nvim"; do
-  if [[ -d "$dir" ]] && [[ "$(readlink "${dir}")" =~ \.?SpaceVim$ ]]; then
-    rm "$dir"
+# Check for existing Vim/Neovim configurations
+if [[ -d "${HOME_DIR}/.vim" || -d "${HOME_DIR}/.config/nvim" || -d "${HOME_DIR}/.SpaceVim" ]]; then
+  echo "WARNING: Existing Vim/Neovim configuration detected."
+  read -p "This will remove your existing configuration. Continue? (y/n) " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    exit 1
   fi
-done
 
-for dir in "${HOME_DIR}/.cache/SpaceVim" "${HOME_DIR}/.SpaceVim" "${HOME_DIR}/.SpaceVim.d"; do
-  if [ -d "$dir" ]; then
-    rm -rf "$dir"
-  fi
-done
+  # Remove existing SpaceVim directories
+  for dir in "${HOME_DIR}/.vim" "${HOME_DIR}/.config/nvim"; do
+    if [[ -d "$dir" ]] && [[ "$(readlink "${dir}" 2> /dev/null)" =~ \.?SpaceVim$ ]]; then
+      rm "$dir"
+    fi
+  done
+
+  for dir in "${HOME_DIR}/.cache/SpaceVim" "${HOME_DIR}/.SpaceVim" "${HOME_DIR}/.SpaceVim.d"; do
+    if [ -d "$dir" ]; then
+      rm -rf "$dir"
+    fi
+  done
+fi
 
 # Install SpaceVim
+echo "Downloading SpaceVim installation script..."
 curl -sLfO "$SPACEVIM_INSTALL_SCRIPT"
 chmod +x ./install.sh
-./install.sh --checkRequirements && ./install.sh
+
+echo "Checking SpaceVim requirements..."
+if ! ./install.sh --checkRequirements; then
+  echo "ERROR: SpaceVim requirements check failed."
+  read -p "Continue anyway? (y/n) " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Nn]$ ]]; then
+    rm -f ./install.sh
+    exit 1
+  fi
+fi
+
+echo "Installing SpaceVim..."
+./install.sh
 
 # Create .SpaceVim.d directory
 "$VIM_EXECUTABLE"
@@ -95,25 +130,35 @@ if [ -f "${HOME_DIR}/.SpaceVim.d/init.toml" ]; then
 fi
 
 # Configure SpaceVim
+echo "Configuring SpaceVim..."
 if "$use_toml"; then
-  if [ -f "${HOME_DIR}/Configurations/init.toml" ]; then
-    ln -sf "${HOME_DIR}/Configurations/init.toml" "${HOME_DIR}/.SpaceVim.d/init.toml"
+  config_file="${HOME_DIR}/Configurations/init.toml"
+  target_file="${HOME_DIR}/.SpaceVim.d/init.toml"
+  if [ -f "$config_file" ]; then
+    ln -sf "$config_file" "$target_file"
+    echo "Linked $config_file to $target_file"
+
     if [ -d "${HOME_DIR}/Configurations/autoload" ]; then
       ln -sf "${HOME_DIR}/Configurations/autoload" "${HOME_DIR}/.SpaceVim.d/autoload"
+      echo "Linked autoload directory"
     fi
   else
-    echo "Error: Configuration file '${HOME_DIR}/Configurations/init.toml' not found."
+    echo "Error: Configuration file '$config_file' not found."
     exit 1
   fi
 else
-  if [ -f "${HOME_DIR}/Configurations/init.vim" ]; then
-    ln -sf "${HOME_DIR}/Configurations/init.vim" "${HOME_DIR}/.SpaceVim.d/init.vim"
+  config_file="${HOME_DIR}/Configurations/init.vim"
+  target_file="${HOME_DIR}/.SpaceVim.d/init.vim"
+  if [ -f "$config_file" ]; then
+    ln -sf "$config_file" "$target_file"
+    echo "Linked $config_file to $target_file"
   else
-    echo "Error: Configuration file '${HOME_DIR}/Configurations/init.vim' not found."
+    echo "Error: Configuration file '$config_file' not found."
     exit 1
   fi
 fi
 
 rm -f ./install.sh
-# Exit successfully
+echo "SpaceVim setup completed successfully!"
+echo "Launch $VIM_EXECUTABLE to start using SpaceVim"
 exit 0
