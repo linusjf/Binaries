@@ -4,7 +4,7 @@
 
 #############
 # Main model:
-model: gpt-4o  # Best balance of capability and cost
+#model: openrouter  # Best balance of capability and cost
 
 #################
 # Model settings:
@@ -47,9 +47,9 @@ check-update: true  # Check for updates on launch
 
 #################
 # Other settings:
-vim: false  # Use standard editing mode (change to true if you prefer vim)
+vim: true  # Use standard editing mode (change to true if you prefer vim)
 suggest-shell-commands: true  # Allow suggesting shell commands
 fancy-input: true  # Enable fancy input with history and completion
-multiline: true  # Enable multi-line input mode
+multiline: false  # Enable multi-line input mode
 notifications: true  # Enable notifications when responses are ready
 detect-urls: true  # Detect and offer to add URLs to chat
