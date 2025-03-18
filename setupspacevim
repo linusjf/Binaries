@@ -76,7 +76,7 @@ while getopts ":hnt" opt; do
 done
 
 # Ensure dependencies
-require curl "$VIM_EXECUTABLE" rm mv ln readlink
+require curl "$VIM_EXECUTABLE" rm mv ln readlink mkdir
 
 # Check for existing Vim/Neovim configurations
 if [[ -d "${HOME_DIR}/.vim" || -d "${HOME_DIR}/.config/nvim" || -d "${HOME_DIR}/.SpaceVim" ]]; then
@@ -120,8 +120,10 @@ fi
 echo "Installing SpaceVim..."
 ./install.sh
 
-# Create .SpaceVim.d directory
-"$VIM_EXECUTABLE"
+# Create .SpaceVim.d directory and default.toml
+if [[ ! -d "${HOME}/.SpaceVim.d" ]]; then
+  mkdir -p "${HOME}/.SpaceVim.d"
+fi
 
 # Delete SpaceVim default init.toml
 # We want to use our init instead
