@@ -53,6 +53,10 @@ Options:
   --dry-run     Show what would be done without actually making changes
 
 Must be run as root (except in dry-run mode).
+
+To ensure that cleanuplogs is run as superuser, use the following command:
+
+sudo env PATH="$PATH" cleanuplogs <options>
 EOF
 }
 
@@ -157,11 +161,13 @@ fi
 
 if [[ "$DRY_RUN" == "true" ]]; then
   printf "Other log files in %s that could be processed:\n" "$LOG_DIR"
+  shopt -s nullglob
   for log_file in *.log; do
     if [[ -f "$log_file" && "$log_file" != "pacman.log" ]]; then
-      printf "- %s (current size: %s)\n" "$log_file" "$(get_file_size "$log_file")"
+      printf -- "- %s (current size: %s)\n" "$log_file" "$(get_file_size "$log_file")"
     fi
   done
+  shopt -u nullglob
   printf "\nTo actually perform these operations, run without --dry-run\n"
 else
   printf "Log files cleaned up successfully.\n"
