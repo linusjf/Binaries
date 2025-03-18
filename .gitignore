@@ -2,5 +2,6 @@
 stopwords
 *.out
 .aider*
+.cache_ggshield
 !.aider.conf.yml
 !.aider.model.settings.yml
