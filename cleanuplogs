@@ -3,14 +3,14 @@ set -euo pipefail
 shopt -s inherit_errexit
 # Cleanup logs script - truncates log files to save disk space
 # Usage: cleanuplogs [number-of-lines] [--dry-run]
-# Version 3.2
+# Version 4.0 - Compatible with both Arch Linux and Ubuntu
 
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/require.sh"
 
-require mv tail dirname readlink basename du
+require mv tail dirname readlink basename du find grep sudo
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/debug.sh"
@@ -54,9 +54,7 @@ Options:
 
 Must be run as root (except in dry-run mode).
 
-To ensure that cleanuplogs is run as superuser, use the following command:
-
-sudo env PATH="$PATH" cleanuplogs <options>
+The script will automatically use sudo when needed.
 EOF
 }
 
@@ -90,9 +88,12 @@ if [[ "${1-""}" == "-h" || "${1-""}" == "--help" ]]; then
   exit 0
 fi
 
-# Run as root, of course (except in dry-run mode).
+# If not running as root and not in dry-run mode, re-execute with sudo
 if ((UID != ROOT_UID)) && [[ "$DRY_RUN" == "false" ]]; then
-  printf "Error: Must be root to run this script.\n" >&2
+  printf "Re-executing with sudo...\n"
+  exec sudo "$0" "$@"
+  # If exec fails, exit with error
+  printf "Error: Failed to execute with sudo.\n" >&2
   exit "$E_NOTROOT"
 fi
 
@@ -135,19 +136,67 @@ if [[ "$DRY_RUN" == "true" ]]; then
   printf "Log directory: %s\n\n" "$LOG_DIR"
 fi
 
-# Save last section of pacman log file.
-if [[ -f pacman.log ]]; then
+# Detect distribution
+DISTRO=""
+if command -v pacman &> /dev/null; then
+  DISTRO="arch"
+elif command -v apt &> /dev/null || [ -f /etc/debian_version ]; then
+  DISTRO="ubuntu"
+fi
+
+printf "Detected distribution: %s\n" "${DISTRO:-unknown}"
+
+# Process distribution-specific log files
+if [[ "$DISTRO" == "arch" ]]; then
+  # Save last section of pacman log file.
+  if [[ -f pacman.log ]]; then
+    if [[ "$DRY_RUN" == "true" ]]; then
+      printf "Would truncate pacman.log to %d lines\n" "$LINES"
+      size_info=$(calculate_size_diff "pacman.log" "$LINES")
+      printf "Size change: %s\n\n" "$size_info"
+    else
+      tail -n "$LINES" pacman.log > pacman.temp \
+        && mv pacman.temp pacman.log
+      printf "Truncated pacman.log to %d lines.\n" "$LINES"
+    fi
+  fi
+elif [[ "$DISTRO" == "ubuntu" ]]; then
+  # Process Ubuntu-specific logs
+  ubuntu_logs=("syslog" "auth.log" "kern.log" "dpkg.log" "apt/history.log" "apt/term.log")
+
+  for log in "${ubuntu_logs[@]}"; do
+    if [[ -f "$log" ]]; then
+      if [[ "$DRY_RUN" == "true" ]]; then
+        printf "Would truncate %s to %d lines\n" "$log" "$LINES"
+        size_info=$(calculate_size_diff "$log" "$LINES")
+        printf "Size change: %s\n\n" "$size_info"
+      else
+        tail -n "$LINES" "$log" > "${log}.temp" \
+          && mv "${log}.temp" "$log"
+        printf "Truncated %s to %d lines.\n" "$log" "$LINES"
+      fi
+    fi
+  done
+
+  # Process rotated logs (*.1, *.gz)
   if [[ "$DRY_RUN" == "true" ]]; then
-    printf "Would truncate pacman.log to %d lines\n" "$LINES"
-    size_info=$(calculate_size_diff "pacman.log" "$LINES")
-    printf "Size change: %s\n\n" "$size_info"
+    rotated_logs=$(find . -name "*.1" -o -name "*.gz" | grep -v "\.gz\.")
+    if [[ -n "$rotated_logs" ]]; then
+      printf "Would remove the following rotated log files:\n"
+      echo "$rotated_logs" | while read -r log; do
+        printf "- %s (size: %s)\n" "$log" "$(get_file_size "$log")"
+      done
+      printf "\n"
+    fi
   else
-    tail -n "$LINES" pacman.log > pacman.temp \
-      && mv pacman.temp pacman.log
-    printf "Truncated pacman.log to %d lines.\n" "$LINES"
+    find . -name "*.1" -o -name "*.gz" | grep -v "\.gz\." | while read -r log; do
+      rm -f "$log"
+      printf "Removed rotated log file: %s\n" "$log"
+    done
   fi
 fi
 
+# Process common log files across distributions
 # ': > wtmp' and '> wtmp' have the same effect.
 if [[ -f wtmp ]]; then
   if [[ "$DRY_RUN" == "true" ]]; then
@@ -159,14 +208,41 @@ if [[ -f wtmp ]]; then
   fi
 fi
 
+# Process lastlog if it exists
+if [[ -f lastlog ]]; then
+  if [[ "$DRY_RUN" == "true" ]]; then
+    lastlog_size=$(get_file_size "lastlog")
+    printf "Would clear lastlog file (current size: %s)\n\n" "$lastlog_size"
+  else
+    : > lastlog
+    printf "Cleared lastlog file.\n"
+  fi
+fi
+
 if [[ "$DRY_RUN" == "true" ]]; then
   printf "Other log files in %s that could be processed:\n" "$LOG_DIR"
   shopt -s nullglob
   for log_file in *.log; do
-    if [[ -f "$log_file" && "$log_file" != "pacman.log" ]]; then
+    # Skip already processed logs
+    if [[ "$DISTRO" == "arch" && "$log_file" == "pacman.log" ]]; then
+      continue
+    fi
+    if [[ "$DISTRO" == "ubuntu" && " syslog auth.log kern.log dpkg.log " == *" $log_file "* ]]; then
+      continue
+    fi
+
+    if [[ -f "$log_file" ]]; then
       printf -- "- %s (current size: %s)\n" "$log_file" "$(get_file_size "$log_file")"
     fi
   done
+
+  # Check for journal logs if systemd is present
+  if [[ -d "/var/log/journal" ]]; then
+    journal_size=$(du -sh "/var/log/journal" | cut -f1)
+    printf "\nSystemd journal logs: %s\n" "$journal_size"
+    printf "To clean up journal logs, you can use: journalctl --vacuum-time=1d\n"
+  fi
+
   shopt -u nullglob
   printf "\nTo actually perform these operations, run without --dry-run\n"
 else
