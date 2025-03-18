@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-
 ######################################################################
 # @author      : Linus Fernandes (linusfernandes@gmail.com)
 # @file        : gitadd
 # @created     : Tuesday Feb 8, 2022 08:00:00 IST
 # @copyright   : Copyright (c) Linus Fernandes
-# @description :
+# @description : Add all changes to git staging area and show status
 ######################################################################
 set -euo pipefail
 shopt -s inherit_errexit
@@ -17,14 +16,14 @@ source "$SCRIPT_DIR/require.sh"
 # shellcheck source=/dev/null
 source "${HOME}/.gitrc"
 
+# Ensure git and hub are available
 require git hub
 
-command=("git" "add" ".")
-if ! "${command[@]}"; then
-  echo "Error adding files to Git staging area" >&2
-  exit 1
-fi
+# Add all files to staging area
+git add .
 
-command=("git" "status")
-"${command[@]}"
-exit $?
+# Show current git status
+echo "Successfully added files to staging area. Current status:"
+git status
+
+exit 0

@@ -4,7 +4,7 @@
 # @file        : gitit
 # @created     : Friday Feb 11, 2022 08:00:00 IST
 # @copyright   : Copyright (c) Linus Fernandes
-# @description :
+# @description : Automates git add, commit, and push operations
 ######################################################################
 set -euo pipefail
 shopt -s inherit_errexit
@@ -16,10 +16,5 @@ if [[ -e "${parentpath}/internet.sh" ]]; then
 fi
 
 gitadd && gitcommit && gitpush
-# shellcheck disable=2181
-if [ $? -ne 0 ]; then
-  printf "Error automating Git operations\n" >&2
-  exit 1
-fi
 
 exit 0
