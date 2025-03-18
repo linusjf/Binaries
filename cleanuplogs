@@ -41,8 +41,8 @@ E_NOTROOT=87
 E_WRONGARGS=85
 
 # Display help message
-if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-  cat <<EOF
+if [[ "${1-${LINES}}" == "-h" || "${1-${LINES}}" == "--help" ]]; then
+  cat << EOF
 Usage: $(basename "$0") [lines-to-keep]
 
 Truncates log files to save disk space, keeping only the specified
