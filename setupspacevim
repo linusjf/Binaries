@@ -49,7 +49,6 @@ usage() {
   echo "Usage: $0 [OPTION]"
   echo ""
   echo "Options:"
-  echo " -n Use Neovim instead of Vim"
   echo " -h Display this help message"
   echo " -t Use init.toml not init.vim"
   echo ""
@@ -59,13 +58,11 @@ usage() {
 # Define variables
 HOME_DIR="$HOME"
 SPACEVIM_INSTALL_SCRIPT="https://spacevim.org/install.sh"
-VIM_EXECUTABLE="vim"
 use_toml=false
 
 # Parse command-line options
-while getopts ":hnt" opt; do
+while getopts ":ht" opt; do
   case $opt in
-    n) VIM_EXECUTABLE="nvim" ;;
     h) usage ;;
     t) use_toml=true ;;
     \?)
@@ -76,7 +73,7 @@ while getopts ":hnt" opt; do
 done
 
 # Ensure dependencies
-require curl "$VIM_EXECUTABLE" rm mv ln readlink mkdir
+require curl rm mv ln readlink mkdir
 
 # Check for existing Vim/Neovim configurations
 if [[ -d "${HOME_DIR}/.vim" || -d "${HOME_DIR}/.config/nvim" || -d "${HOME_DIR}/.SpaceVim" ]]; then
@@ -125,12 +122,6 @@ if [[ ! -d "${HOME}/.SpaceVim.d" ]]; then
   mkdir -p "${HOME}/.SpaceVim.d"
 fi
 
-# Delete SpaceVim default init.toml
-# We want to use our init instead
-if [ -f "${HOME_DIR}/.SpaceVim.d/init.toml" ]; then
-  mv "${HOME_DIR}/.SpaceVim.d/init.toml" "${HOME_DIR}/.SpaceVim.d/init.toml.bak"
-fi
-
 # Configure SpaceVim
 echo "Configuring SpaceVim..."
 if "$use_toml"; then
@@ -162,5 +153,5 @@ fi
 
 rm -f ./install.sh
 echo "SpaceVim setup completed successfully!"
-echo "Launch $VIM_EXECUTABLE to start using SpaceVim"
+echo "Launch vim/neovim to start using SpaceVim"
 exit 0
