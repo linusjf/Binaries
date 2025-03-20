@@ -1,4 +1,4 @@
-When writing code, you MUST follow these principles:
+When writing bash scripts, you MUST follow these principles:
 
 - Code should be easy to read and understand.
 - Keep the code as simple as possible. Avoid unnecessary complexity.
