@@ -43,3 +43,15 @@ When writing code, you MUST follow these principles:
 - eval should be avoided.
 - Bash arrays should be used to store lists of elements, to avoid quoting complications. This particularly applies to argument lists.
 - Given the choice between invoking a shell builtin and invoking a separate process, choose the builtin.
+- Always check return values and give informative return values.
+- A function called main is required for scripts long enough to contain at least one other function.
+- Put all functions together in the file just below constants. Don’t hide executable code between functions. Doing so makes the code difficult to follow and results in nasty surprises when debugging.
+- If you’ve got functions, put them all together near the top of the file. Only includes, set statements and setting constants may be done before declaring functions.
+- Declare function-specific variables with local.
+- File names should be lowercase, with underscores to separate words if desired.
+- Constants and anything exported to the environment should be capitalized, separated with underscores, and declared at the top of the file.
+- For the sake of clarity readonly or export is recommended vs. the equivalent declare commands.
+- Aliases should be avoided in scripts. Use functions instead.
+- Always use (( … )) or $(( … )) rather than let or $[ … ] or expr.
+- Use process substitution or the readarray builtin (bash4+) in preference to piping to while. Pipes create a subshell, so any variables modified within a pipeline do not propagate to the parent shell.
+- Function names should be lower-case, with underscores to separate words. Separate libraries with ::. Parentheses are required after the function name. The keyword function is optional, but must be used consistently throughout a project.
