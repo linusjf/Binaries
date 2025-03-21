@@ -84,7 +84,7 @@ When writing bash scripts, you MUST follow these principles:
 - For the sake of clarity readonly or export is recommended\
   vs. the equivalent declare commands.
 - Aliases should be avoided in scripts. Use functions instead.
-- Always use (( … )) or $(( … )) rather than let or $[ … ] or expr.
+- Always use \(\( … \)\) or \$\(\( … \)\) rather than let or \$\[ … \] or expr.
 - Use process substitution or the readarray builtin (bash4+) \
   in preference to piping to while.\
    Pipes create a subshell, so any variables modified within a pipeline\
