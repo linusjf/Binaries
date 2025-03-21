@@ -1,4 +1,4 @@
-When writing bash scripts, you MUST follow these principles:
+# When writing bash scripts, you MUST follow these principles
 
 - Code should be easy to read and understand.
 - Keep the code as simple as possible. Avoid unnecessary complexity.
@@ -14,7 +14,7 @@ When writing bash scripts, you MUST follow these principles:
 - Consider security implications of the code.\
   Implement security best practices to protect against vulnerabilities and attacks.
 - Executables must start with #!/usr/bin/env bash and minimal flags.
-- Use set to set shell options so that calling your script as bash script_name\
+- Use set to set shell options so that calling your script as `bash script_name`\
   does not break its functionality.
 - Shell should only be used for small utilities or simple wrapper scripts.
 - If you are writing a script that is more than 100 lines long, or that uses\
@@ -33,10 +33,11 @@ When writing bash scripts, you MUST follow these principles:
 - It should be possible for someone else to learn how to use your program or\
   to use a function in your library by reading the comments (and self-help,\
   if provided) without reading the code.
-- All function header comments should describe the intended API behaviour using
-  \ Description of the function includes Globals: List of global variables used\
-  and modified. Arguments: Arguments taken. Outputs: Output to STDOUT or STDERR.\
-  Returns: Returned values other than the default exit status of the last command run.
+- All function header comments should describe the intended API behaviour. \
+- Description of the function includes\
+  `Globals: List of global variables used and modified`\
+  `Arguments: Arguments taken`,`Outputs: Output to STDOUT or STDERR`\
+   `Returns: Returned values other than the default exit status of last command`.
 - Comment tricky, non-obvious, interesting or important parts of your code.
 - Use TODO comments for code that is temporary, a short-term solution, or \
   good-enough but not perfect.
@@ -59,13 +60,15 @@ When writing bash scripts, you MUST follow these principles:
   and ;; on separate lines.
 - In order of precedence: Stay consistent with what you find;\
   quote your variables; prefer "${var}" over "$var".
-- Use "$@" unless you have a specific reason to use $\*, such as simply appending the arguments to a string in a message or log.
+- Use "$@" unless you have a specific reason to use $\*, such as simply\
+  appending the arguments to a string in a message or log.
 - Use $(command) instead of backticks.
 - [[…]] is preferred over [ … ], test and /usr/bin/[.
 - Use quotes rather than filler characters where possible.
 - Use an explicit path when doing wildcard expansion of filenames.
 - eval should be avoided.
-- Bash arrays should be used to store lists of elements, to avoid quoting complications. This particularly applies to argument lists.
+- Bash arrays should be used to store lists of elements, to avoid quoting\
+  complications. This particularly applies to argument lists.
 - Given the choice between invoking a shell builtin and invoking a separate process,\
   choose the builtin.
 - Always check return values and give informative return values.
@@ -73,7 +76,8 @@ When writing bash scripts, you MUST follow these principles:
   at least one other function.
 - Put all functions together in the file just below constants.\
   Don’t hide executable code between functions.\
-  Doing so makes the code difficult to follow and results in nasty surprises when debugging.
+  Doing so makes the code difficult to follow and results in nasty surprises \
+  when debugging.
 - If you’ve got functions, put them all together near the top of the file.\
    Only includes, set statements and setting constants may be done\
   before declaring functions.
