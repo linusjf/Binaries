@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+
+warning() {
+  echo -e "\033[1;33mWARNING: ${1}\033[0m"
+}
+
+info() {
+  echo -e "\033[1;36mINFO: $1\033[0m"
+}
+
+error() {
+  echo -e "\033[1;31mERROR: $1\033[0m"
+}
+
+link_configurations() {
+  local ret=0
+  local config_dir="$HOME/Configurations"
+  local home_dir="$HOME"
+
+  if [ ! -d "$config_dir" ]; then
+    error "$config_dir directory does not exist."
+    return 1
+  fi
+
+  for item in "$@"; do
+    local item_path="$config_dir/$item"
+    local link_path="$home_dir/$item"
+
+    if [ ! -e "$item_path" ]; then
+      warning "$item_path does not exist."
+      continue
+    fi
+
+    if [ -e "$link_path" ]; then
+      if [ -f "$link_path" ]; then
+        info "Copying ${link_path} to ${link_path}.old"
+        cp "${link_path}" "${link_path}.old"
+      fi
+      if [ -d "$link_path" ]; then
+        if [[ -L "$link_path" ]]; then
+          local real_path
+          real_path="$(readlink "$link_path")"
+          # real path should not be in Configurations directory
+          if [[ "$real_path" == *Configurations* ]]; then
+            warning "Skipping ${link_path} as it is linked already..."
+            continue
+          else
+            info "${link_path} is actually at $real_path"
+            info "Safe to link to $item_path"
+            rm -rf "${link_path}"
+          fi
+        else
+          info "Copying ${link_path} to ${link_path}.old"
+          cp "${link_path}" "${link_path}.old"
+        fi
+      fi
+    fi
+
+    info "Creating link to $item_path"
+    ln -sf "$item_path" "$link_path" || ((ret = 1))
+  done
+
+  exit "$ret"
+}
+
+function require() {
+  local missing_deps=()
+
+  for dep in "$@"; do
+    if ! command -v "$dep" &> /dev/null; then
+      missing_deps+=("$dep")
+    fi
+  done
+
+  if [ ${#missing_deps[@]} -gt 0 ]; then
+    printf "Error: The following dependencies were not found:\n" >&2
+    for dep in "${missing_deps[@]}"; do
+      printf "  - %s\n" "$dep" >&2
+    done
+    return 1
+  fi
+}
+
+set -eou pipefail
+shopt -s inherit_errexit
+
+require cp
+
+link_configurations .bashrc .bash_profile .bash_aliases .bash_logout \
+  .gitconfig .gitrc .github .gitguardian.yml .emacs .sqliterc .ssh .termux .tmux.conf \
+  .vimrc .jupyter .aider.conf.yml .aider.model.settings.yml
+
+# handle git differently
+if [[ -L "${HOME}/.git" ]]; then
+  ln -sf "${HOME}/Configurations/git" "${HOME}/.git"
+else
+  cp "${HOME}/.git" "${HOME}/.git.old"
+fi
+exit 0
