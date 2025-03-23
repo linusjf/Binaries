@@ -22,8 +22,11 @@ require git hub
 # Add all files to staging area
 git add .
 
-# Show current git status
-echo "Successfully added files to staging area. Current status:"
-git status
-
+if git diff --cached --quiet; then
+  echo "No files added."
+else
+  # Show current git status
+  echo "Successfully added files to staging area."
+  git status
+fi
 exit 0
