@@ -9,7 +9,7 @@ info() {
 }
 
 error() {
-  echo -e "\033[1;31mERROR: $1\033[0m"
+  echo -e "\033[1;31mERROR: $1\033[0m" >&2
 }
 
 link_configurations() {
@@ -74,9 +74,9 @@ function require() {
   done
 
   if [ ${#missing_deps[@]} -gt 0 ]; then
-    printf "Error: The following dependencies were not found:\n" >&2
+    error "The following dependencies were not found:"
     for dep in "${missing_deps[@]}"; do
-      printf "  - %s\n" "$dep" >&2
+      printf "\033[1;31m - %s\033[0m\n" "$dep" >&2
     done
     return 1
   fi
