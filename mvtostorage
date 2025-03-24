@@ -4,11 +4,11 @@ shopt -s inherit_errexit
 
 # Detect environment
 if [[ -d /data/data/com.termux/files/usr ]]; then
-  STORAGE_BASE="${HOME}/storage"
+  STORAGE_BASE="${HOME}/storage/downloads"
 elif [[ -f /etc/arch-release ]]; then
-  STORAGE_BASE="${HOME}"
+  STORAGE_BASE="${HOME}/downloads"
 elif [[ -f /etc/lsb-release ]] && grep -q "Ubuntu" /etc/lsb-release; then
-  STORAGE_BASE="${HOME}"
+  STORAGE_BASE="${HOME}/downloads"
 else
   echo "Unsupported environment" >&2
   exit 1
