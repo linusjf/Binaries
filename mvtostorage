@@ -1,10 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 shopt -s inherit_errexit
+
+# Detect environment
+if [[ -d /data/data/com.termux/files/usr ]]; then
+  STORAGE_BASE="${HOME}/storage"
+elif [[ -f /etc/arch-release ]]; then
+  STORAGE_BASE="${HOME}"
+elif [[ -f /etc/lsb-release ]] && grep -q "Ubuntu" /etc/lsb-release; then
+  STORAGE_BASE="${HOME}"
+else
+  echo "Unsupported environment" >&2
+  exit 1
+fi
+
 # Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+SCRIPT_DIR=$(dirname "$(readlink -f "$0" 2> /dev/null || realpath "$0")")
 # shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
+source "$SCRIPT_DIR/require.sh" 2> /dev/null || {
+  echo "Warning: require.sh not found, continuing without it" >&2
+}
 
 # Ensure necessary commands are available
 require mkdir find mv
@@ -26,21 +41,24 @@ if [[ "$1" == "-n" || "$1" == "--dry-run" ]]; then
 fi
 
 # Assign arguments
-DEST_FOLDER="${HOME}/storage/downloads/${1}"
+DEST_FOLDER="${STORAGE_BASE}/${1}"
 FILE_PATTERN="$2"
 
-# Create the destination directory
-mkdir -p "$DEST_FOLDER" || {
-  echo "Error: Failed to create directory $DEST_FOLDER" >&2
-  exit 1
-}
+if [[ "$DRY_RUN" == true ]]; then
+  echo "[DRY RUN] Would create directory: $DEST_FOLDER"
+else
+  mkdir -p "$DEST_FOLDER" || {
+    echo "Error: Failed to create directory $DEST_FOLDER" >&2
+    exit 1
+  }
+fi
 
 if [[ "$DRY_RUN" == true ]]; then
   echo "[DRY RUN] Files that would be moved to '$DEST_FOLDER':"
-  find . -type f -name "$FILE_PATTERN"
+  find . -type f -name "$FILE_PATTERN" -print0 | xargs -0 -I{} echo "{} -> $DEST_FOLDER"
 else
   # Find and move matching files
-  find . -type f -name "$FILE_PATTERN" -exec mv {} "$DEST_FOLDER" \; || {
+  find . -type f -name "$FILE_PATTERN" -print0 | xargs -0 -I{} mv {} "$DEST_FOLDER" || {
     echo "Error: Failed to move files" >&2
     exit 1
   }
