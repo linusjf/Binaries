@@ -24,7 +24,11 @@ function check_configurations_repo() {
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
       require git
-      git clone https://github.com/linusjf/Configurations "${HOME}/Configurations"
+      if [[ $DRY_RUN -eq 1 ]]; then
+        info "[DRY RUN] Would clone Configurations repo to ${HOME}/Configurations"
+      else
+        git clone https://github.com/linusjf/Configurations "${HOME}/Configurations"
+      fi
     else
       read -p "Continue anyway? (y/n) " -n 1 -r
       echo
@@ -64,13 +68,17 @@ function link_configurations() {
     if [ -e "$link_path" ]; then
       # For regular files
       if [ -f "$link_path" ]; then
-        # Backup existing file before replacing
-        if ! cp --backup=numbered "${link_path}" "${link_path}.old"; then
-          error "Failed backup ${link_path}"
-          ((ret = 1))
-          continue
+        if [[ $DRY_RUN -eq 1 ]]; then
+          info "[DRY RUN] Would backup and replace file: ${link_path}"
+        else
+          # Backup existing file before replacing
+          if ! cp --backup=numbered "${link_path}" "${link_path}.old"; then
+            error "Failed backup ${link_path}"
+            ((ret = 1))
+            continue
+          fi
+          rm "${link_path}"
         fi
-        rm "${link_path}"
       # For directories
       elif [ -d "$link_path" ]; then
         # Handle symlinked directories
@@ -83,28 +91,40 @@ function link_configurations() {
               warn "Skipped ${link_path} --> ${real_path}"
               continue
             else
-              warn "Removing ${link_path} --> ${real_path}."
+              if [[ $DRY_RUN -eq 1 ]]; then
+                info "[DRY RUN] Would remove symlink: ${link_path} --> ${real_path}"
+              else
+                warn "Removing ${link_path} --> ${real_path}."
+              fi
             fi
           fi
         # Handle regular directories
         else
-          # Backup existing directory before replacing
-          if ! cp --backup=numbered -r "${link_path}" "${link_path}.old"; then
-            error "Failed backup ${link_path}"
-            ((ret = 1))
-            continue
+          if [[ $DRY_RUN -eq 1 ]]; then
+            info "[DRY RUN] Would backup and replace directory: ${link_path}"
+          else
+            # Backup existing directory before replacing
+            if ! cp --backup=numbered -r "${link_path}" "${link_path}.old"; then
+              error "Failed backup ${link_path}"
+              ((ret = 1))
+              continue
+            fi
+            rm -r "${link_path}"
           fi
-          rm -r "${link_path}"
         fi
       fi
     fi
 
-    # Create symbolic link
-    if ! ln -sf "$item_path" "$link_path"; then
-      error "Failed link: $link_path --> $item_path"
-      ((ret = 1))
+    if [[ $DRY_RUN -eq 1 ]]; then
+      info "[DRY RUN] Would create symlink: $link_path --> $item_path"
     else
-      info "$link_path --> $item_path"
+      # Create symbolic link
+      if ! ln -sf "$item_path" "$link_path"; then
+        error "Failed link: $link_path --> $item_path"
+        ((ret = 1))
+      else
+        info "$link_path --> $item_path"
+      fi
     fi
   done
 
@@ -139,24 +159,64 @@ function require() {
 function handle_git_config() {
   # If .git is already a symlink
   if [[ -L "${HOME}/.git" ]]; then
-    if ! ln -sf "${HOME}/Configurations/git" "${HOME}/.git"; then
-      error "Failed to create git config link"
-      return 1
+    if [[ $DRY_RUN -eq 1 ]]; then
+      info "[DRY RUN] Would update git symlink: ${HOME}/.git --> ${HOME}/Configurations/git"
+    else
+      if ! ln -sf "${HOME}/Configurations/git" "${HOME}/.git"; then
+        error "Failed to create git config link"
+        return 1
+      fi
     fi
   # If .git is a regular directory
   else
-    # Create numbered backup of existing .git directory
-    if ! cp --backup=numbered -r "${HOME}/.git" "${HOME}/.git.old"; then
-      error "Failed to backup .git config"
-      return 1
+    if [[ $DRY_RUN -eq 1 ]]; then
+      info "[DRY RUN] Would backup and replace .git directory"
+    else
+      # Create numbered backup of existing .git directory
+      if ! cp --backup=numbered -r "${HOME}/.git" "${HOME}/.git.old"; then
+        error "Failed to backup .git config"
+        return 1
+      fi
+      # Create new symlink
+      ln -sf "${HOME}/Configurations/git" "${HOME}/.git"
     fi
-    # Create new symlink
-    ln -sf "${HOME}/Configurations/git" "${HOME}/.git"
   fi
+}
+
+# Print help message
+function show_help() {
+  echo "Usage: setupcfg [options]"
+  echo
+  echo "Options:"
+  echo "  -d, --dry-run    Show what would be done without making changes"
+  echo "  -h, --help       Show this help message"
+  echo
 }
 
 # Main function to coordinate setup process
 function main() {
+  # Initialize dry run flag
+  DRY_RUN=0
+
+  # Parse command line arguments
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -d | --dry-run)
+        DRY_RUN=1
+        shift
+        ;;
+      -h | --help)
+        show_help
+        exit 0
+        ;;
+      *)
+        error "Unknown option: $1"
+        show_help
+        exit 1
+        ;;
+    esac
+  done
+
   # Enable strict error handling
   set -euo pipefail
   shopt -s inherit_errexit
