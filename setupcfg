@@ -33,7 +33,8 @@ link_configurations() {
 
     if [ -e "$link_path" ]; then
       if [ -f "$link_path" ]; then
-        cp "${link_path}" "${link_path}.old"
+        # shellcheck disable=SC2015
+        cp --backup=numbered "${link_path}" "${link_path}.old" && rm "${link_path}" || ((ret = 1))
       fi
       if [ -d "$link_path" ]; then
         if [[ -L "$link_path" ]]; then
@@ -49,7 +50,8 @@ link_configurations() {
             fi
           fi
         else
-          cp "${link_path}" "${link_path}.old"
+          # shellcheck disable=SC2015
+          cp --backup=numbered -r "${link_path}" "${link_path}.old" && rm -r "${link_path}" || ((ret = 1))
         fi
       fi
     fi
@@ -82,7 +84,7 @@ function require() {
 set -eou pipefail
 shopt -s inherit_errexit
 
-require cp
+require cp rm ln
 
 link_configurations .bashrc .bash_profile .bash_aliases .bash_logout \
   .gitconfig .gitrc .github .gitguardian.yml .emacs .sqliterc .ssh .termux .tmux.conf \
