@@ -66,7 +66,7 @@ function link_configurations() {
       if [ -f "$link_path" ]; then
         # Backup existing file before replacing
         if ! cp --backup=numbered "${link_path}" "${link_path}.old"; then
-          error "Failed to backup ${link_path}"
+          error "Failed backup ${link_path}"
           ((ret = 1))
           continue
         fi
@@ -90,7 +90,7 @@ function link_configurations() {
         else
           # Backup existing directory before replacing
           if ! cp --backup=numbered -r "${link_path}" "${link_path}.old"; then
-            error "Failed to backup ${link_path}"
+            error "Failed backup ${link_path}"
             ((ret = 1))
             continue
           fi
@@ -101,7 +101,7 @@ function link_configurations() {
 
     # Create symbolic link
     if ! ln -sf "$item_path" "$link_path"; then
-      error "Failed to create link: $link_path --> $item_path"
+      error "Failed link: $link_path --> $item_path"
       ((ret = 1))
     else
       info "$link_path --> $item_path"
@@ -145,10 +145,12 @@ function handle_git_config() {
     fi
   # If .git is a regular directory
   else
-    if ! cp -r "${HOME}/.git" "${HOME}/.git.old"; then
+    # Create numbered backup of existing .git directory
+    if ! cp --backup=numbered -r "${HOME}/.git" "${HOME}/.git.old"; then
       error "Failed to backup .git config"
       return 1
     fi
+    # Create new symlink
     ln -sf "${HOME}/Configurations/git" "${HOME}/.git"
   fi
 }
