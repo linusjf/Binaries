@@ -20,7 +20,7 @@ if [[ $# -lt 1 ]]; then
   exit 1
 fi
 
-if ! gh repo clone "$@"; then
+if ! gh repo clone "$@" -- --recurse-submodules; then
   echo "Error cloning repository" >&2
   exit 1
 fi
