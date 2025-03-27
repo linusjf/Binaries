@@ -56,14 +56,14 @@ git push origin development
 
 # Switch to main branch and merge/rebase changes
 git switch "$mainBranch"
-git submodule update --force
+git submodule update --remote
 git rebase development # Use rebase instead of merge for cleaner history
 git pull --rebase
 git push origin "$mainBranch"
 
 # Switch back to development and update it
 git switch development
-git submodule update --force
+git submodule update --remote
 git rebase "$mainBranch"
 git push origin development # Push updated development branch
 
