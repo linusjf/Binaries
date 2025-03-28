@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+######################################################################
+# @author      : Linus Fernandes (linusfernandes@gmail.com)
+# @file        : gitsubmodules
+# @created     : Friday Mar 28, 2025 05:29:00 IST
+# @copyright   : Copyright (c) Linus Fernandes
+# @description : Automates update of git submodules in parent repo
+######################################################################
+
+set -euo pipefail
+shopt -s inherit_errexit
+RED="\033[0;31m"
+NC="\033[0m" # No Color
+
+# shellcheck disable=SC2317,SC2329
+function message() {
+  local ret=$1
+  if [ "$ret" -eq 0 ]; then
+    git diff development main
+    git gc
+  else
+    echo -e "${RED}Returning to branch development${NC}"
+    git switch development || exit 1
+  fi
+  exit "$ret"
+}
+
+# Source the require.sh file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/require.sh"
+
+if [[ -e "${SCRIPT_DIR}/internet.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/internet.sh"
+fi
+
+require git
+
+trap 'ret=$?; message $ret' EXIT
+
+# Ensure latest changes
+git pull --rebase
+
+# check if local branch development exists.
+# If not, create it
+if ! git show-ref --quiet refs/heads/development; then
+  printf "Local branch development does not exist. Creating it ...\n"
+  git checkout -b development
+fi
+
+# Push development branch
+git push origin development
+
+if git status --porcelain | grep '^ M'; then
+  echo "feat: Update submodules $(date)" > commit.txt
+  git add .
+  git status
+  git commit -F commit.txt
+  git push origin development
+  git checkout main
+  git merge development
+  git push origin main
+  git checkout development
+  git submodule update --remote
+  echo "Submodules updated."
+else
+  echo "Submodules already up to date."
+fi
+exit 0
