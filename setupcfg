@@ -230,7 +230,7 @@ function main() {
   # Link common configuration files
   link_configurations .bashrc .bash_profile .bash_aliases .bash_logout \
     .gitconfig .gitrc .github .gitguardian.yml .emacs .sqliterc .ssh .termux .tmux.conf \
-    .vimrc .jupyter .aider.conf.yml .aider.model.settings.yml templates
+    .vimrc .jupyter .aider.conf.yml .aider.model.settings.yml templates .gitignore_global
 
   # Handle git configuration
   handle_git_config
