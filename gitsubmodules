@@ -26,6 +26,14 @@ function message() {
   exit "$ret"
 }
 
+function get_alt_branch() {
+  if [[ "${1}" == "main" ]]; then
+    echo "development"
+  else
+    echo "main"
+  fi
+}
+
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
@@ -40,32 +48,27 @@ require git
 
 trap 'ret=$?; message $ret' EXIT
 
-# Ensure latest changes
-git pull --rebase
+curr_branch="$(git branch --show-current)"
 
-# check if local branch development exists.
-# If not, create it
-if ! git show-ref --quiet refs/heads/development; then
-  printf "Local branch development does not exist. Creating it ...\n"
-  git checkout -b development
+if ! git show-ref --verify --quiet refs/heads/development; then
+  git branch --create-reflog development
 fi
-
-# Push development branch
-git push origin development
 
 if git status --porcelain | grep '^ M'; then
   echo "feat: Update submodules $(date)" > commit.txt
   git add .
   git status
   git commit -F commit.txt
-  git push origin development
-  git checkout main
-  git merge development
-  git push origin main
+  git push origin "$curr_branch"
+  alt_branch="$(get_alt_branch "$curr_branch")"
+  git checkout "${alt_branch}"
+  git merge "$curr_branch"
+  git push origin "${alt_branch}"
   git checkout development
   git submodule update --remote
   echo "Submodules updated."
 else
   echo "Submodules already up to date."
 fi
+
 exit 0
