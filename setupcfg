@@ -15,6 +15,29 @@ function error() {
   printf "\033[1;31m%s\033[0m\n" "$1" >&2
 }
 
+# Verify required commands are available
+# Args: List of command dependencies to check
+# Returns: 0 if all dependencies found, 1 otherwise
+function require() {
+  local missing_deps=()
+
+  # Check each dependency
+  for dep in "$@"; do
+    if ! command -v "$dep" &> /dev/null; then
+      missing_deps+=("$dep")
+    fi
+  done
+
+  # Report any missing dependencies
+  if [ ${#missing_deps[@]} -gt 0 ]; then
+    error "The following dependencies were not found:"
+    for dep in "${missing_deps[@]}"; do
+      error "  - $dep"
+    done
+    return 1
+  fi
+}
+
 # Check if Configurations repository exists and offer to clone it if missing
 function check_configurations_repo() {
   if [[ ! -d "${HOME}/Configurations" ]]; then
@@ -132,29 +155,6 @@ function link_configurations() {
   return "$ret"
 }
 
-# Verify required commands are available
-# Args: List of command dependencies to check
-# Returns: 0 if all dependencies found, 1 otherwise
-function require() {
-  local missing_deps=()
-
-  # Check each dependency
-  for dep in "$@"; do
-    if ! command -v "$dep" &> /dev/null; then
-      missing_deps+=("$dep")
-    fi
-  done
-
-  # Report any missing dependencies
-  if [ ${#missing_deps[@]} -gt 0 ]; then
-    error "The following dependencies were not found:"
-    for dep in "${missing_deps[@]}"; do
-      error "  - $dep"
-    done
-    return 1
-  fi
-}
-
 # Handle special case for .git directory configuration
 # Returns: 0 if successful, 1 on error
 function handle_git_config() {
@@ -163,9 +163,11 @@ function handle_git_config() {
     if [[ $DRY_RUN -eq 1 ]]; then
       info "[DRY RUN] Would update git symlink: ${HOME}/.git --> ${HOME}/Configurations/git"
     else
-      if ! ln -sf "${HOME}/Configurations/git" "${HOME}/.git"; then
-        error "Failed to create git config link"
-        return 1
+      real_path="$(readlink -f "${HOME}/.git")"
+      if [[ "$real_path" == *Configurations* ]]; then
+        warn "Skipped ${HOME}/.git --> ${real_path}"
+      elif rm -rf "${HOME}/.git" && ln -sf "${HOME}/Configurations/git" "${HOME}/.git"; then
+        info "${HOME}/.git --> ${HOME}/Configurations/git"
       fi
     fi
   # If .git is a regular directory
