@@ -7,7 +7,7 @@
 # @copyright   : Copyright (c) Linus Fernandes
 # @description : Automates update of git submodules in parent repo
 ######################################################################
-
+set -x
 set -euo pipefail
 shopt -s inherit_errexit
 RED="\033[0;31m"
@@ -43,8 +43,8 @@ attach_submodules() {
     cd "$submodule"
     git checkout main
     git pull origin main
-    if git add .; then
-      git commit -m 'Updated submodule from remote'
+    git add .
+    if git commit -m 'Updated submodule from remote'; then
       git push
     fi
     git checkout development
