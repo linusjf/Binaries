@@ -34,6 +34,28 @@ function get_alt_branch() {
   fi
 }
 
+attach_submodules() {
+  submodules=("$(git submodule foreach --recursive | cut -d' ' -f2 | sed "s/^'\|'$//g")")
+
+  # Loop through each submodule and switch to main branch
+  for submodule in "${submodules[@]}"; do
+    orig_dir="$(pwd)"
+    cd "$submodule"
+    git checkout main
+    git pull origin main
+    git add .
+    git commit -m 'Updated submodule from remote'
+    git push
+    git checkout development
+    git pull origin development
+    git merge main
+    cd "$orig_dir"
+  done
+
+  git submodule update --remote
+  return 0
+}
+
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
@@ -53,6 +75,8 @@ curr_branch="$(git branch --show-current)"
 if ! git show-ref --verify --quiet refs/heads/development; then
   git branch --create-reflog development
 fi
+
+attach_submodules
 
 if git status --porcelain | grep '^ M'; then
   echo "feat: Update submodules $(date)" > commit.txt
