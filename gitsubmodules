@@ -37,15 +37,16 @@ function get_alt_branch() {
 attach_submodules() {
   submodules=("$(git submodule foreach --recursive | cut -d' ' -f2 | sed "s/^'\|'$//g")")
 
-  # Loop through each submodule and switch to main branch
+  # Loop through each submodule
   for submodule in "${submodules[@]}"; do
     orig_dir="$(pwd)"
     cd "$submodule"
     git checkout main
     git pull origin main
-    git add .
-    git commit -m 'Updated submodule from remote'
-    git push
+    if git add .; then
+      git commit -m 'Updated submodule from remote'
+      git push
+    fi
     git checkout development
     git pull origin development
     git merge main
