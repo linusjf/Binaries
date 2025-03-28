@@ -84,7 +84,7 @@ function link_configurations() {
         # Handle symlinked directories
         if [[ -L "$link_path" ]]; then
           local real_path
-          real_path="$(readlink "$link_path")"
+          real_path="$(readlink -f "$link_path")"
           if [[ -e "$real_path" ]]; then
             # Skip if already linked to Configurations
             if [[ "$real_path" == *Configurations* ]]; then
@@ -95,6 +95,7 @@ function link_configurations() {
                 info "[DRY RUN] Would remove symlink: ${link_path} --> ${real_path}"
               else
                 warn "Removing ${link_path} --> ${real_path}."
+                rm -rf "${link_path}"
               fi
             fi
           fi
@@ -109,7 +110,7 @@ function link_configurations() {
               ((ret = 1))
               continue
             fi
-            rm -r "${link_path}"
+            rm -rf "${link_path}"
           fi
         fi
       fi
