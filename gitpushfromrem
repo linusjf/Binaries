@@ -4,13 +4,17 @@
 # @file        : gitpushfromrem
 # @created     : Friday Jan 27, 2023 04:19:00 IST
 # @modified    : Improved error handling, security, and readability
-# @description : Pushes changes between main and development branches
 ######################################################################
 set -euo pipefail
 shopt -s inherit_errexit
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 NC="\033[0m" # No Color
+
+if [[ "$#" -gt 0 && "$1" == "--debug" ]]; then
+  set -x
+  shift
+fi
 
 # shellcheck disable=SC2317,SC2329
 function message() {
@@ -31,7 +35,7 @@ function message() {
 
 usage() {
   echo -e "${RED}Error: Invalid usage.${NC}"
-  echo "Usage: $0 main|development"
+  echo "Usage: $0 [--debug] main|development"
   exit 127
 }
 
