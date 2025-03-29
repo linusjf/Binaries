@@ -75,10 +75,9 @@ attach_submodules() {
       cd "$submodule"
       main_br="$(main_branch)"
       git checkout "$main_br"
-      git pull origin "$main_br"
       # update local and remote repos only if owned by user
 
-      if check_remote_url "$GIT_USER"; then
+      if check_remote_url "$GITHUB_USERNAME"; then
         git add .
         # check if submodule is dirty i.e., files have been changed
         added_files="$(git status --porcelain | awk -F, 'NF>0 {print $2}')"
@@ -91,12 +90,12 @@ attach_submodules() {
         git checkout development
         git pull origin development
         # update local and remote repos only if owned by user
-        if check_remote_url "$GIT_USER"; then
+        if check_remote_url "$GITHUB_USERNAME"; then
           git merge "$main_br"
           git push
         fi
       fi
-      if ! check_remote_url "$GIT_USER"; then
+      if ! check_remote_url "$GITHUB_USERNAME"; then
         printf "Warning: Submodule %s cannot be updated since it's an external dependency.\n" "$submodule"
       fi
       cd "$orig_dir"
