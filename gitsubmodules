@@ -47,8 +47,8 @@ main_branch() {
 }
 
 branch_exists() {
-  local branch_name=$1
-  if git show-ref --verify --quiet refs/heads/$branch_name; then
+  local branch_name="$1"
+  if git show-ref --verify --quiet "refs/heads/${branch_name}"; then
     return 0
   else
     return 1
