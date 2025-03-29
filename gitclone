@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 shopt -s inherit_errexit
+
+if [[ "$#" -gt 0 && "$1" == "--debug" ]]; then
+  set -x
+  shift
+fi
+
 # Source the require.sh file
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
@@ -17,6 +23,7 @@ require gh
 
 if [[ $# -lt 1 ]]; then
   echo "Error: repository not specified" >&2
+  echo "Usage: $(basename "$0") [--debug] REPOSITORY [CLONE_OPTIONS]" >&2
   exit 1
 fi
 
