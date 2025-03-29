@@ -11,6 +11,11 @@ shopt -s inherit_errexit
 RED="\033[0;31m"
 NC="\033[0m" # No Color
 
+if [[ "$#" -gt 0 && "$1" == "--debug" ]]; then
+  set -x
+  shift
+fi
+
 function message() {
   local ret=$1
   if [ "$ret" -eq 0 ]; then
