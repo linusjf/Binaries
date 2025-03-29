@@ -14,8 +14,9 @@ usage() {
   echo ""
   echo "Options:"
   echo "  -d, --dry-run  Print links to be deleted instead of deleting"
-  echo "  -h, --help  Display this help message"
-  echo "  -p, --print Print list of broken links"
+  echo "  -h, --help     Display this help message"
+  echo "  -p, --print    Print list of broken links"
+  echo "  --debug        Enable debug output (shows executed commands)"
   exit 1
 }
 set -euo pipefail
@@ -29,6 +30,7 @@ require mapfile find rm
 
 dry_run=false
 print=false
+debug=false
 while [ $# -gt 0 ]; do
   case $1 in
     -d | --dry-run)
@@ -36,6 +38,9 @@ while [ $# -gt 0 ]; do
       ;;
     -p | --print)
       print=true
+      ;;
+    --debug)
+      debug=true
       ;;
     -h | --help)
       usage
@@ -46,6 +51,10 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+
+if "$debug"; then
+  set -x
+fi
 
 mapfile -t broken_links < <(find . -xtype l -print)
 
@@ -63,7 +72,7 @@ all_links=no
 # shellcheck disable=SC2162
 for i in "${!broken_links[@]}"; do
   link="${broken_links[$i]}"
-  
+
   if [ "$all_links" = "yes" ]; then
     if "$dry_run"; then
       echo "Would delete $link"
@@ -73,7 +82,7 @@ for i in "${!broken_links[@]}"; do
     fi
     continue
   fi
-  
+
   read -p "Delete $link? (yes/no/all/abort): " response
   case $response in
     y | yes)
@@ -97,8 +106,12 @@ for i in "${!broken_links[@]}"; do
       echo "Operation aborted."
       exit 1
       ;;
-    *) 
+    *)
       echo "Skipping $link"
       ;;
   esac
 done
+
+if "$debug"; then
+  set +x
+fi
