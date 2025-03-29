@@ -9,12 +9,24 @@
 set -euo pipefail
 shopt -s inherit_errexit
 parentpath="$(dirname "$(readlink -f "$0")")"
+debug=false
+
+# Handle debug option
+if [[ "$#" -gt 0 && "$1" == "--debug" ]]; then
+  debug=true
+  set -x
+  shift
+fi
 
 if [[ -e "${parentpath}/internet.sh" ]]; then
   # shellcheck disable=SC1091
   source "${parentpath}/internet.sh"
 fi
 
-gitadd && gitcommit && gitpush
+if [[ "$debug" == true ]]; then
+  gitadd --debug && gitcommit --debug && gitpush --debug
+else
+  gitadd && gitcommit && gitpush
+fi
 
 exit 0

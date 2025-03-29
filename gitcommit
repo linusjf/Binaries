@@ -17,6 +17,12 @@ require git hub
 # shellcheck source=/dev/null
 source "${HOME}/.gitrc"
 
+# Handle debug option
+if [[ "$#" -gt 0 && "$1" == "--debug" ]]; then
+  set -x
+  shift
+fi
+
 # Check if we're in a git repository
 if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
   echo "Error: Not in a git repository" >&2
@@ -25,7 +31,7 @@ fi
 
 if [[ ! -e commit.txt ]]; then
   echo "Error: commit.txt not found" >&2
-  echo "Usage: $(basename "$0")" >&2
+  echo "Usage: $(basename "$0") [--debug]" >&2
   echo "  Commits changes using the message in commit.txt" >&2
   exit 1
 fi
