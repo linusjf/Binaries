@@ -43,7 +43,10 @@ attach_submodules() {
     git checkout main
     git pull origin main
     git add .
-    if git commit -m 'Updated submodule from remote'; then
+    # check if submodule is dirty i.e., files have been changed
+    added_files=("$(git status --porcelain | cut -d' ' -f3)")
+    if [ "${#added_files[@]}" -gt 0 ]; then
+      git commit -m "Added local files " "${added_files[@]}" " to submodule"
       git push
     fi
     git checkout development
