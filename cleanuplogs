@@ -8,11 +8,13 @@
 # Globals:
 #   LOG_DIR - Directory containing log files
 #   DRY_RUN - Flag for dry run mode
+#   DBG   - Flag for debug mode
 #   DISTRO  - Detected Linux distribution
 #
 # Arguments:
 #   [number-of-lines] - Number of lines to preserve (default: 50)
 #   [--dry-run]       - Show what would be done without making changes
+#   [--debug]         - Enable debug output
 #
 # Returns:
 #   0 - Success
@@ -20,7 +22,7 @@
 #   87 - Not running as root
 #   85 - Invalid argument
 #
-# Version: 4.0
+# Version: 4.1
 set -euo pipefail
 shopt -s inherit_errexit
 
@@ -29,10 +31,12 @@ shopt -s inherit_errexit
 readonly SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 readonly LOG_DIR="${PREFIX:-""}/var/log"
 readonly ROOT_UID=0
-readonly T_LINES=50
+T_LINES=50
 readonly E_XCD=86
 readonly E_NOTROOT=87
 readonly E_WRONGARGS=85
+DRY_RUN=false
+DBG=false
 
 # Source dependencies
 # shellcheck disable=SC1091
@@ -50,29 +54,23 @@ require mv tail dirname readlink basename du find grep sudo
 #   Help message to STDOUT
 function usage() {
   cat << EOF
-Usage: $(basename "$0") [lines-to-keep] [--dry-run]
+  Usage: cleanuplogs <lines-to-keep> <--dry-run> <--debug>
 
-Truncates log files to save disk space, keeping only the specified
-number of most recent lines. Default is 50 lines if not specified.
-
-Options:
-  -h, --help    Display this help message and exit
-  --dry-run     Show what would be done without making changes
-
-Must be run as root (except in dry-run mode).
-
-The script will automatically use sudo when needed.
+  Truncates log files to save disk space, keeping only the specified
+  number of most recent lines. Default is 50 lines if not specified.
+  
+  Options:
+    -h, --help    Display this help message and exit
+    --dry-run     Show what would be done without making changes
+    --debug       Enable debug output (shows executed commands)
+  
+  Must be run as root (except in dry-run mode).
+  The script will automatically use sudo when needed.
 EOF
 }
 
 # Parse command line arguments
-#
-# Outputs:
-#   lines - Number of lines to keep
-#   dry_run - Dry run flag
 function parse_args() {
-  local lines="$T_LINES"
-  local dry_run=false
 
   for arg in "$@"; do
     case "$arg" in
@@ -81,22 +79,24 @@ function parse_args() {
         exit 0
         ;;
       --dry-run)
-        dry_run=true
+        export DRY_RUN=true
+        ;;
+      --debug)
+        export DBG=true
         ;;
       *[!0-9]*)
-        if [[ "$arg" != "--dry-run" ]]; then
+        if [[ "$arg" != "--dry-run" && "$arg" != "--debug" ]]; then
           printf "Error: Invalid argument '%s'\n" "$arg" >&2
           usage
           exit "$E_WRONGARGS"
         fi
         ;;
       *)
-        lines="$arg"
+        export T_LINES="$arg"
         ;;
     esac
   done
 
-  echo "$lines $dry_run"
 }
 
 # Get human-readable file size
@@ -127,29 +127,32 @@ function calculate_size_diff() {
   original_size=$(get_file_size "$file")
 
   # Create temporary file with truncated content
-  tail -n "$lines" "$file" > "${file}.temp"
-  new_size=$(get_file_size "${file}.temp")
+  tmpfile="$(mktemp -t "$(basename "${file}").XXXXX")"
+  tail -n "$lines" "$file" > "$tmpfile"
+  new_size=$(get_file_size "$tmpfile")
 
   # Clean up temp file
-  rm -f "${file}.temp"
+  rm -f "${tmpfile}"
 
   echo "Original: ${original_size}, After truncation: ${new_size}"
 }
 
 # Main function
 function main() {
-  local lines
-  local dry_run
   # shellcheck disable=SC2162
-  read lines dry_run < <(parse_args "$@")
+  parse_args "$@"
 
-  if [[ "$dry_run" == "true" ]]; then
+  if [[ "$DBG" == "true" ]]; then
+    set -x
+  fi
+
+  if [[ "$DRY_RUN" == "true" ]]; then
     printf "DRY RUN MODE: No changes will be made\n\n"
     printf "Log directory: %s\n\n" "$LOG_DIR"
   fi
 
   # If not running as root and not in dry-run mode, re-execute with sudo
-  if ((UID != ROOT_UID)) && [[ "$dry_run" == "false" ]]; then
+  if ((UID != ROOT_UID)) && [[ "$DRY_RUN" == "false" ]]; then
     printf "Re-executing with sudo...\n"
     debug_command exec sudo "$0" "$@"
     # If exec fails, exit with error
@@ -181,14 +184,14 @@ function main() {
   if [[ "$DISTRO" == "arch" ]]; then
     # Save last section of pacman log file.
     if [[ -f pacman.log ]]; then
-      if [[ "$dry_run" == "true" ]]; then
-        printf "Would truncate pacman.log to %d lines\n" "$lines"
-        size_info=$(calculate_size_diff "pacman.log" "$lines")
+      if [[ "$DRY_RUN" == "true" ]]; then
+        printf "Would truncate pacman.log to %d lines\n" "$T_LINES"
+        size_info=$(calculate_size_diff "pacman.log" "$T_LINES")
         printf "Size change: %s\n\n" "$size_info"
       else
-        tail -n "$lines" pacman.log > pacman.temp \
+        tail -n "$T_LINES" pacman.log > pacman.temp \
           && mv pacman.temp pacman.log
-        printf "Truncated pacman.log to %d lines.\n" "$lines"
+        printf "Truncated pacman.log to %d lines.\n" "$T_LINES"
       fi
     fi
   elif [[ "$DISTRO" == "ubuntu" ]]; then
@@ -197,21 +200,21 @@ function main() {
 
     for log in "${ubuntu_logs[@]}"; do
       if [[ -f "$log" ]]; then
-        if [[ "$dry_run" == "true" ]]; then
-          printf "Would truncate %s to %d lines\n" "$log" "$lines"
-          size_info=$(calculate_size_diff "$log" "$lines")
+        if [[ "$DRY_RUN" == "true" ]]; then
+          printf "Would truncate %s to %d lines\n" "$log" "$T_LINES"
+          size_info=$(calculate_size_diff "$log" "$T_LINES")
           printf "Size change: %s\n\n" "$size_info"
         else
-          tail -n "$lines" "$log" > "${log}.temp" \
+          tail -n "$T_LINES" "$log" > "${log}.temp" \
             && mv "${log}.temp" "$log"
-          printf "Truncated %s to %d lines.\n" "$log" "$lines"
+          printf "Truncated %s to %s lines.\n" "$log" "$T_LINES"
         fi
       fi
     done
     echo "${ubuntu_logs[@]}"
 
     # Process rotated logs (*.1, *.gz)
-    if [[ "$dry_run" == "true" ]]; then
+    if [[ "$DRY_RUN" == "true" ]]; then
       # shellcheck disable=SC2155
       local rotated_logs=$(find . -name "*.1" -o -name "*.gz" | grep -v "\.gz\.")
       if [[ -n "$rotated_logs" ]]; then
@@ -231,7 +234,7 @@ function main() {
 
   # Process common log files across distributions
   if [[ -f wtmp ]]; then
-    if [[ "$dry_run" == "true" ]]; then
+    if [[ "$DRY_RUN" == "true" ]]; then
       # shellcheck disable=SC2155
       local wtmp_size=$(get_file_size "wtmp")
       printf "Would clear wtmp file (current size: %s)\n\n" "$wtmp_size"
@@ -242,7 +245,7 @@ function main() {
   fi
 
   if [[ -f lastlog ]]; then
-    if [[ "$dry_run" == "true" ]]; then
+    if [[ "$DRY_RUN" == "true" ]]; then
       # shellcheck disable=SC2155
       local lastlog_size=$(get_file_size "lastlog")
       printf "Would clear lastlog file (current size: %s)\n\n" "$lastlog_size"
@@ -252,7 +255,7 @@ function main() {
     fi
   fi
 
-  if [[ "$dry_run" == "true" ]]; then
+  if [[ "$DRY_RUN" == "true" ]]; then
     printf "Other log files in %s that could be processed:\n" "$LOG_DIR"
     shopt -s nullglob
     for log_file in *.log; do
@@ -281,6 +284,10 @@ function main() {
     printf "\nTo actually perform these operations, run without --dry-run\n"
   else
     printf "Log files cleaned up successfully.\n"
+  fi
+
+  if [[ "$DBG" == "true" ]]; then
+    set +x
   fi
 
   # shellcheck disable=SC1091
