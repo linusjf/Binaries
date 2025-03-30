@@ -6,36 +6,74 @@
 # @copyright   : Copyright (c) Linus Fernandes
 # @description : Commits changes using a message from commit.txt file
 ######################################################################
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
-require git hub
 
-# shellcheck source=/dev/null
-source "${HOME}/.gitrc"
+usage() {
+  cat << EOF
+Usage: $0 [OPTION]
+Commit changes using message from commit.txt
 
-# Handle debug option
-if [[ "$#" -gt 0 && "$1" == "--debug" ]]; then
-  set -x
-  shift
-fi
-
-# Check if we're in a git repository
-if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-  echo "Error: Not in a git repository" >&2
+Options:
+  --debug    Enable debug output
+  -h, --help Display this help message
+EOF
   exit 1
+}
+
+debug=false
+
+main() {
+  parse_arguments "$@"
+  setup_environment
+  validate_environment
+  commit_changes
+}
+
+parse_arguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --debug) debug=true ;;
+      -h | --help) usage ;;
+      *)
+        echo "Invalid option: $1" >&2
+        usage
+        ;;
+    esac
+    shift
+  done
+}
+
+setup_environment() {
+  if "$debug"; then
+    set -x
+  fi
+
+  SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+  source "$SCRIPT_DIR/require.sh"
+  # shellcheck source=/dev/null
+  source "${HOME}/.gitrc"
+
+  require git hub
+}
+
+validate_environment() {
+  if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    echo "Error: Not in a git repository" >&2
+    exit 1
+  fi
+
+  if [[ ! -e commit.txt ]]; then
+    echo "Error: commit.txt not found" >&2
+    usage
+  fi
+}
+
+commit_changes() {
+  git commit -F commit.txt
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-
-if [[ ! -e commit.txt ]]; then
-  echo "Error: commit.txt not found" >&2
-  echo "Usage: $(basename "$0") [--debug]" >&2
-  echo "  Commits changes using the message in commit.txt" >&2
-  exit 1
-fi
-
-git commit -F commit.txt
-
-exit 0
