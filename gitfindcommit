@@ -1,27 +1,81 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2155,SC1090,SC1091
+######################################################################
+# Search git commit messages for matching text
+######################################################################
 set -euo pipefail
 shopt -s inherit_errexit
 
-if [[ "$#" -gt 0 && "$1" == "--debug" ]]; then
-  set -x
-  shift
+readonly SCRIPT_NAME=$(basename "$0")
+readonly EXIT_FAILURE=1
+
+debug=false
+
+usage() {
+  cat << EOF
+${SCRIPT_NAME} - Search git commit messages
+
+Usage: ${SCRIPT_NAME} [OPTION] SEARCH_STRING
+
+Options:
+  --debug    Enable debug output
+  -h, --help Display this help message
+
+Examples:
+  ${SCRIPT_NAME} "bug fix"      # Search for "bug fix" in commit messages
+  ${SCRIPT_NAME} --debug "fix"  # Search with debug output
+EOF
+  exit ${EXIT_FAILURE}
+}
+
+main() {
+  local search_string
+  parse_arguments "$@"
+  setup_environment
+  search_commits "$search_string"
+}
+
+parse_arguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --debug)
+        debug=true
+        shift
+        ;;
+      -h | --help)
+        usage
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ $# -lt 1 ]]; then
+    printf "Error: search string not specified\n" >&2
+    usage
+  fi
+  search_string="${1}"
+}
+
+setup_environment() {
+  if "${debug}"; then
+    set -x
+  fi
+
+  local script_dir
+  script_dir=$(dirname "$(readlink -f "$0")")
+  source "${script_dir}/require.sh"
+  require git
+}
+
+search_commits() {
+  if ! git log --all --grep="$1"; then
+    printf "Error searching Git log\n" >&2
+    exit ${EXIT_FAILURE}
+  fi
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
-
-require git
-
-if [[ $# -lt 1 ]]; then
-  printf "usage: %s [--debug] searchstring\n" "$0"
-  exit 1
-fi
-
-if ! git log --all --grep="$1"; then
-  printf "Error searching Git log\n" >&2
-  exit 1
-fi
-
-exit 0

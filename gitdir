@@ -1,21 +1,78 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2155,SC1090,SC1091
+######################################################################
+# Get absolute path to git repository directory
+######################################################################
 set -euo pipefail
 shopt -s inherit_errexit
 
-if [[ "$#" -gt 0 && "$1" == "--debug" ]]; then
-  set -x
-  shift
+readonly SCRIPT_NAME=$(basename "$0")
+readonly EXIT_FAILURE=1
+
+debug=false
+
+usage() {
+  cat << EOF
+${SCRIPT_NAME} - Get git repository directory path
+
+Usage: ${SCRIPT_NAME} [OPTION]
+
+Options:
+  --debug    Enable debug output
+  -h, --help Display this help message
+
+Examples:
+  ${SCRIPT_NAME}          # Print git directory path
+  ${SCRIPT_NAME} --debug  # Print path with debug output
+EOF
+  exit ${EXIT_FAILURE}
+}
+
+main() {
+  parse_arguments "$@"
+  setup_environment
+  get_git_dir
+}
+
+parse_arguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --debug)
+        debug=true
+        shift
+        ;;
+      -h | --help)
+        usage
+        ;;
+      *)
+        printf "Error: Invalid argument '%s'\n" "$1" >&2
+        usage
+        ;;
+    esac
+  done
+}
+
+setup_environment() {
+  if "${debug}"; then
+    set -x
+  fi
+
+  local script_dir
+  script_dir=$(dirname "$(readlink -f "$0")")
+  source "${script_dir}/require.sh"
+  require git readlink
+}
+
+get_git_dir() {
+  local git_dir
+  if ! git_dir=$(readlink -f "$(git rev-parse --git-dir)"); then
+    printf "Error retrieving Git repository directory\n" >&2
+    exit ${EXIT_FAILURE}
+  fi
+
+  printf "%s\n" "$git_dir"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
-
-require git readlink
-if ! git_dir=$(readlink -f "$(git rev-parse --git-dir)"); then
-  echo "Error retrieving Git repository directory" >&2
-  exit 1
-fi
-
-printf "%s\n" "$git_dir"
