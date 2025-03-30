@@ -1,117 +1,117 @@
 #!/usr/bin/env bash
 #
-# Script to delete broken links.
-#
-# The script:
-# - Includes a `--dry-run` option to print links to be deleted instead of deleting them
-# - Uses `rm -f` to force deletion of links without prompting for confirmation
-# - Asks the user to confirm deletion for each link, with options "yes", "no", or "all"
-# - If the user chooses "all", the script deletes the current link and all remaining links without asking for further confirmation
+# Script to delete broken symbolic links with interactive confirmation.
+# Provides options for dry-run mode, printing links, and debug output.
+
+# shellcheck disable=SC2155,SC1090,SC1091
+set -euo pipefail
+shopt -s inherit_errexit
 
 usage() {
-  echo "Usage: $0 [OPTION]"
-  echo "Remove broken symbolic links"
-  echo ""
-  echo "Options:"
-  echo "  -d, --dry-run  Print links to be deleted instead of deleting"
-  echo "  -h, --help     Display this help message"
-  echo "  -p, --print    Print list of broken links"
-  echo "  --debug        Enable debug output (shows executed commands)"
+  cat << EOF
+Usage: $0 [OPTION]
+Remove broken symbolic links
+
+Options:
+  -d, --dry-run  Print links to be deleted instead of deleting
+  -h, --help     Display this help message
+  -p, --print    Print list of broken links
+  --debug        Enable debug output (shows executed commands)
+EOF
   exit 1
 }
-set -euo pipefail
 
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
+DRY_RUN=false
+PRINT=false
+DBG=false
+BROKEN_LINKS=()
 
-require mapfile find rm
+main() {
+  parse_arguments "$@"
+  setup_debug_mode
+  find_broken_links
+  handle_links
+}
 
-dry_run=false
-print=false
-debug=false
-while [ $# -gt 0 ]; do
-  case $1 in
-    -d | --dry-run)
-      dry_run=true
-      ;;
-    -p | --print)
-      print=true
-      ;;
-    --debug)
-      debug=true
-      ;;
-    -h | --help)
-      usage
-      ;;
-    *)
-      usage
-      ;;
-  esac
-  shift
-done
+parse_arguments() {
+  while [ $# -gt 0 ]; do
+    case $1 in
+      -d | --dry-run) DRY_RUN=true ;;
+      -p | --print) PRINT=true ;;
+      --debug) DBG=true ;;
+      -h | --help) usage ;;
+      *) usage ;;
+    esac
+    shift
+  done
+}
 
-if "$debug"; then
-  set -x
-fi
+setup_debug_mode() {
+  if "$DBG"; then
+    set -x
+  fi
+}
 
-mapfile -t broken_links < <(find . -xtype l -print)
+find_broken_links() {
+  # shellcheck disable=SC2155
+  local script_dir=$(dirname "$(readlink -f "$0")")
+  source "$script_dir/require.sh"
 
-if [ ${#broken_links[@]} -eq 0 ]; then
-  echo "No broken symbolic links found."
-  exit 0
-fi
+  require mapfile find rm
 
-if "$print"; then
-  printf "%s\n" "${broken_links[@]}"
-  exit 0
-fi
+  mapfile -t BROKEN_LINKS < <(find . -xtype l -print)
+}
 
-all_links=no
-# shellcheck disable=SC2162
-for i in "${!broken_links[@]}"; do
-  link="${broken_links[$i]}"
-
-  if [ "$all_links" = "yes" ]; then
-    if "$dry_run"; then
-      echo "Would delete $link"
-    else
-      rm -f "$link"
-      echo "Deleted $link"
-    fi
-    continue
+handle_links() {
+  if [ ${#BROKEN_LINKS[@]} -eq 0 ]; then
+    echo "No broken symbolic links found."
+    exit 0
   fi
 
-  read -p "Delete $link? (yes/no/all/abort): " response
-  case $response in
-    y | yes)
-      if "$dry_run"; then
-        echo "Would delete $link"
-      else
-        rm -f "$link"
-        echo "Deleted $link"
-      fi
-      ;;
-    all)
-      all_links=yes
-      if "$dry_run"; then
-        echo "Would delete $link"
-      else
-        rm -f "$link"
-        echo "Deleted $link"
-      fi
-      ;;
-    abort)
-      echo "Operation aborted."
-      exit 1
-      ;;
-    *)
-      echo "Skipping $link"
-      ;;
-  esac
-done
+  if "$PRINT"; then
+    printf "%s\n" "${BROKEN_LINKS[@]}"
+    exit 0
+  fi
 
-if "$debug"; then
-  set +x
+  process_links
+}
+
+process_links() {
+  local all_links="no"
+
+  local response
+  for link in "${BROKEN_LINKS[@]}"; do
+    if [ "$all_links" = "yes" ]; then
+      process_link "$link"
+      continue
+    fi
+
+    read -rp "Delete $link? (yes/no/all/abort): " response
+    case "$response" in
+      y | yes) process_link "$link" ;;
+      all)
+        all_links="yes"
+        process_link "$link"
+        ;;
+      abort)
+        echo "Operation aborted."
+        exit 1
+        ;;
+      *) echo "Skipping $link" ;;
+    esac
+  done
+}
+
+process_link() {
+  local link=$1
+  if "$DRY_RUN"; then
+    echo "Would delete $link"
+  else
+    rm -f "$link"
+    echo "Deleted $link"
+  fi
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
