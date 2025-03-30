@@ -1,30 +1,71 @@
 #!/usr/bin/env bash
-
-######################################################################
-# @author      : Linus Fernandes (linusfernandes@gmail.com)
-# @file        : gitalias
-# @created     : Friday Jan 27, 2023 04:55:00 IST
-# @copyright   : Copyright (c) Linus Fernandes
-# @description :
-######################################################################
+# List all configured git aliases
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
 
-if [[ "$#" -gt 0 && "$1" == "--debug" ]]; then
-  set -x
-  shift
+readonly SCRIPT_NAME=$(basename "$0")
+readonly EXIT_FAILURE=1
+
+debug=false
+
+usage() {
+  cat << EOF
+${SCRIPT_NAME} - List configured git aliases
+
+Usage: ${SCRIPT_NAME} [OPTION]
+
+Options:
+  --debug    Enable debug output
+  -h, --help Display this help message
+EOF
+  exit ${EXIT_FAILURE}
+}
+
+main() {
+  parse_arguments "$@"
+  setup_environment
+  list_aliases
+}
+
+parse_arguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --debug)
+        debug=true
+        shift
+        ;;
+      -h | --help)
+        usage
+        ;;
+      *)
+        echo "Error: Invalid argument '$1'" >&2
+        usage
+        ;;
+    esac
+  done
+}
+
+setup_environment() {
+  if "${debug}"; then
+    set -x
+  fi
+
+  local script_dir
+  script_dir=$(dirname "$(readlink -f "$0")")
+  source "${script_dir}/require.sh"
+  require git
+}
+
+list_aliases() {
+  if ! output=$(git config --get-regexp '^alias\.'); then
+    echo "Error retrieving Git aliases" >&2
+    exit ${EXIT_FAILURE}
+  fi
+
+  printf "%s\n" "$output"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
-
-require git
-
-if ! output=$(git config --get-regexp '^alias\.'); then
-  echo "Error retrieving Git aliases" >&2
-  exit 1
-fi
-
-printf "%s\n" "$output"

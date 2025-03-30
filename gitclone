@@ -1,33 +1,82 @@
 #!/usr/bin/env bash
+# Clone git repositories with automatic submodule initialization
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
 
-if [[ "$#" -gt 0 && "$1" == "--debug" ]]; then
-  set -x
-  shift
-fi
+readonly SCRIPT_NAME=$(basename "$0")
+readonly EXIT_FAILURE=1
 
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
+debug=false
 
-parentpath="$(dirname "$(readlink -f "$0")")"
+usage() {
+  cat << EOF
+${SCRIPT_NAME} - Git repository cloner with submodule support
 
-if [[ -e "${parentpath}/internet.sh" ]]; then
-  # shellcheck disable=SC1091
-  source "${parentpath}/internet.sh"
-fi
+Usage: ${SCRIPT_NAME} [OPTION] REPOSITORY [CLONE_OPTIONS]
 
-require gh
+Options:
+  --debug    Enable debug output
+  -h, --help Display this help message
 
-if [[ $# -lt 1 ]]; then
-  echo "Error: repository not specified" >&2
-  echo "Usage: $(basename "$0") [--debug] REPOSITORY [CLONE_OPTIONS]" >&2
-  exit 1
-fi
+Examples:
+  ${SCRIPT_NAME} owner/repo       # Clone repository
+  ${SCRIPT_NAME} --debug owner/repo # Clone with debug output
+EOF
+  exit ${EXIT_FAILURE}
+}
 
-if ! gh repo clone "$@" -- --recurse-submodules; then
-  echo "Error cloning repository" >&2
-  exit 1
+main() {
+  parse_arguments "$@"
+  setup_environment
+  clone_repository "$@"
+}
+
+parse_arguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --debug)
+        debug=true
+        shift
+        ;;
+      -h | --help)
+        usage
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ $# -lt 1 ]]; then
+    echo "Error: repository not specified" >&2
+    usage
+  fi
+}
+
+setup_environment() {
+  if "${debug}"; then
+    set -x
+  fi
+
+  local script_dir
+  script_dir=$(dirname "$(readlink -f "$0")")
+  source "${script_dir}/require.sh"
+
+  if [[ -e "${script_dir}/internet.sh" ]]; then
+    source "${script_dir}/internet.sh"
+  fi
+
+  require gh
+}
+
+clone_repository() {
+  if ! gh repo clone "$@" -- --recurse-submodules; then
+    echo "Error cloning repository" >&2
+    exit ${EXIT_FAILURE}
+  fi
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
