@@ -23,9 +23,9 @@
 #   85 - Invalid argument
 #
 # Version: 4.1
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
-# shellcheck disable=SC2155,SC1090,SC1091
 
 readonly SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 readonly LOG_DIR="${PREFIX:-""}/var/log"
@@ -211,8 +211,8 @@ main() {
     printf "Other log files in %s that could be processed:\n" "$LOG_DIR"
     shopt -s nullglob
     for log_file in *.log; do
-      [[ -f "$log_file" ]] &&
-        printf -- "- %s (current size: %s)\n" "$log_file" "$(get_file_size "$log_file")"
+      [[ -f "$log_file" ]] \
+        && printf -- "- %s (current size: %s)\n" "$log_file" "$(get_file_size "$log_file")"
     done
     shopt -u nullglob
 
