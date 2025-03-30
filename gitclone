@@ -8,6 +8,7 @@ readonly SCRIPT_NAME=$(basename "$0")
 readonly EXIT_FAILURE=1
 
 debug=false
+recurse_submodules=true
 
 usage() {
   cat << EOF
@@ -16,20 +17,23 @@ ${SCRIPT_NAME} - Git repository cloner with submodule support
 Usage: ${SCRIPT_NAME} [OPTION] REPOSITORY [CLONE_OPTIONS]
 
 Options:
-  --debug    Enable debug output
-  -h, --help Display this help message
+  --debug          Enable debug output
+  --no-submodules  Disable submodule recursion
+  -h, --help       Display this help message
 
 Examples:
-  ${SCRIPT_NAME} owner/repo       # Clone repository
-  ${SCRIPT_NAME} --debug owner/repo # Clone with debug output
+  ${SCRIPT_NAME} owner/repo              # Clone repository with submodules
+  ${SCRIPT_NAME} --no-submodules owner/repo # Clone without submodules
+  ${SCRIPT_NAME} --debug owner/repo      # Clone with debug output
 EOF
   exit ${EXIT_FAILURE}
 }
 
 main() {
+  local repo
   parse_arguments "$@"
   setup_environment
-  clone_repository "$@"
+  clone_repository "$repo"
 }
 
 parse_arguments() {
@@ -37,6 +41,10 @@ parse_arguments() {
     case "$1" in
       --debug)
         debug=true
+        shift
+        ;;
+      --no-submodules)
+        recurse_submodules=false
         shift
         ;;
       -h | --help)
@@ -52,6 +60,7 @@ parse_arguments() {
     echo "Error: repository not specified" >&2
     usage
   fi
+  repo="${1}"
 }
 
 setup_environment() {
@@ -71,7 +80,13 @@ setup_environment() {
 }
 
 clone_repository() {
-  if ! gh repo clone "$@" -- --recurse-submodules; then
+  local clone_args=("$@")
+
+  if "${recurse_submodules}"; then
+    clone_args+=("--" "--recurse-submodules")
+  fi
+
+  if ! gh repo clone "${clone_args[@]}"; then
     echo "Error cloning repository" >&2
     exit ${EXIT_FAILURE}
   fi
