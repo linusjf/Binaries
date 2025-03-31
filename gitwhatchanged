@@ -1,20 +1,156 @@
 #!/usr/bin/env bash
+# View changes in a Git repository using 'git log --raw'.
+# Passes any additional arguments directly to 'git log'.
+
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
 
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
-require git
+# --- Constants ---
+readonly SCRIPT_NAME
+SCRIPT_NAME=$(basename "$0")
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
 
-# Check if inside a Git repository
-if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-  echo "Error: Not a Git repository. Exiting..."
-  exit 1
+# --- Global Variables ---
+# Set by command-line options
+verbose=false
+debug=false
+
+# --- Functions ---
+
+# Print usage information and exit.
+# Globals:
+#   SCRIPT_NAME
+# Arguments: None
+# Outputs:
+#   Writes usage information to STDERR.
+# Returns:
+#   Exits with failure status.
+function usage() {
+  cat << EOF >&2
+${SCRIPT_NAME} - View changes in a Git repository using 'git log --raw'.
+
+Usage: ${SCRIPT_NAME} [OPTION]... [--] [GIT_LOG_ARGS]...
+
+Options:
+  -h, --help       Display this help message and exit.
+  -v, --verbose    Enable verbose output (currently unused).
+      --debug      Enable debug mode (set -x).
+
+GIT_LOG_ARGS:
+  Any arguments provided after options (or after '--') are passed directly
+  to the 'git log --raw' command.
+
+Examples:
+  ${SCRIPT_NAME}                       # Show raw log for all commits.
+  ${SCRIPT_NAME} -n 5                   # Show raw log for the last 5 commits.
+  ${SCRIPT_NAME} -- path/to/file.txt   # Show raw log affecting a specific file.
+  ${SCRIPT_NAME} --debug -n 2          # Show raw log for last 2 commits in debug mode.
+EOF
+  exit ${EXIT_FAILURE}
+}
+
+# Print an error message to STDERR.
+# Globals: None
+# Arguments:
+#   $1: The error message to print.
+# Outputs:
+#   Writes the error message in red to STDERR.
+# Returns: None
+function print_error() {
+  printf "\033[1;31mError: %s\033[0m\n" "$1" >&2
+}
+
+# Print an informational message to STDOUT if verbose mode is enabled.
+# Globals:
+#   verbose
+# Arguments:
+#   $1: The informational message to print.
+# Outputs:
+#   Writes the message in cyan to STDOUT if verbose is true.
+# Returns: None
+function print_info() {
+  if ${verbose}; then
+    printf "\033[1;36m%s\033[0m\n" "$1"
+  fi
+}
+
+# Main function to parse arguments and execute the git command.
+# Globals:
+#   verbose
+#   debug
+# Arguments:
+#   $@: Command-line arguments passed to the script.
+# Outputs:
+#   Writes git log output to STDOUT.
+#   Writes error messages to STDERR.
+# Returns:
+#   EXIT_SUCCESS (0) on successful execution.
+#   EXIT_FAILURE (1) on error (e.g., not a git repo, invalid option).
+function main() {
+  local git_log_args=()
+
+  # Parse command-line options
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h | --help)
+        usage
+        ;;
+      -v | --verbose)
+        verbose=true
+        shift
+        ;;
+      --debug)
+        debug=true
+        set -x
+        shift
+        ;;
+      --)
+        shift                # Consume '--'
+        git_log_args+=("$@") # Treat remaining args as git log args
+        break                # Stop option processing
+        ;;
+      -*)
+        print_error "Invalid option: $1"
+        usage
+        ;;
+      *)
+        # Assume start of git log arguments
+        git_log_args+=("$@")
+        break
+        ;;
+    esac
+  done
+
+  # Source required utilities
+  # Using BASH_SOURCE[0] is more robust than readlink -f "$0"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck source=require.sh
+  source "${script_dir}/require.sh"
+  require_or_exit git
+
+  # Check if inside a Git repository
+  if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    print_error "Not a Git repository. Exiting..."
+    exit ${EXIT_FAILURE}
+  fi
+
+  print_info "Running: git log --raw ${git_log_args[*]}"
+
+  # Run git log with raw and pass through any extra arguments
+  git log --raw "${git_log_args[@]}"
+
+  # If debug mode was enabled, turn it off before exiting
+  ${debug} && set +x
+
+  exit ${EXIT_SUCCESS}
+}
+
+# --- Script Execution ---
+
+# Ensure the script is executed directly, not sourced.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-
-# Run git log with optional arguments
-git log --raw "$@"
-
-exit 0
