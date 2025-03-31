@@ -1,10 +1,123 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2155,SC1090,SC1091 # Dynamically determined source path
+
 set -euo pipefail
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
+shopt -s inherit_errexit
 
-require shfmt awk
+readonly SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
+readonly EXIT_USAGE=2
+readonly REQUIRED_UTILS=("shfmt" "awk")
 
-shfmt --find . | awk -F'/' 'NF==1'
+debug=false # Flag for debug mode
+
+#
+#
+#
+function print_error() {
+  printf "\033[0;31mError: %s\033[0m\n" "$1" >&2
+}
+
+#
+#
+#
+function usage() {
+  cat << EOF >&2
+${SCRIPT_NAME} - List shell scripts in the current directory.
+
+Usage: ${SCRIPT_NAME} [OPTIONS]
+
+Uses 'shfmt --find .' to locate shell scripts recursively from the current
+directory and then uses 'awk' to filter and print only those scripts
+located directly in the current directory.
+
+Options:
+  -h, --help       Display this help message and exit.
+      --debug      Enable debug mode (set -x).
+
+Requires:
+  - ${REQUIRED_UTILS[*]} command line tools.
+
+Examples:
+  ${SCRIPT_NAME}
+  ${SCRIPT_NAME} --debug
+EOF
+  exit ${EXIT_USAGE}
+}
+
+#
+#
+#
+function parse_arguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h | --help)
+        usage
+        ;;
+      --debug)
+        debug=true
+        shift
+        ;;
+      -*)
+        print_error "Invalid option: $1"
+        usage
+        ;;
+      *)
+        # No positional arguments expected
+        print_error "Unknown argument: $1"
+        usage
+        ;;
+    esac
+    # This check prevents infinite loops if an unexpected argument is somehow
+    # not handled by the cases above or if shift is missed.
+    if [[ $# -gt 0 && "$1" == "${1-}" ]]; then # Check if $1 exists before shifting
+      shift
+    fi
+  done
+}
+
+#
+#
+#
+function main() {
+  parse_arguments "$@"
+
+  # Activate debug mode if requested
+  if [[ "${debug}" == true ]]; then
+    set -x
+  fi
+
+  # Source require.sh and check dependencies
+  source "${SCRIPT_DIR}/require.sh"
+  require_or_exit "${REQUIRED_UTILS[@]}"
+
+  # Execute the command pipeline
+  # Use a temporary variable to check the pipeline status correctly
+  local output
+  output=$(shfmt --find . | awk -F'/' 'NF==1 {print $NF}')
+  local pipe_status=("${PIPESTATUS[@]}") # Capture PIPESTATUS immediately
+
+  # Check status of both commands in the pipe
+  if [[ ${pipe_status[0]} -ne 0 ]]; then
+    print_error "'shfmt --find .' command failed."
+    exit ${EXIT_FAILURE}
+  elif [[ ${#pipe_status[@]} -gt 1 ]] && [[ ${pipe_status[1]} -ne 0 ]]; then
+    # awk failure is less likely here unless there's a syntax error in the awk script itself
+    print_error "'awk' command failed."
+    exit ${EXIT_FAILURE}
+  fi
+
+  # Print the collected output if successful
+  if [[ -n "${output}" ]]; then
+    echo "${output}"
+  fi
+
+  exit ${EXIT_SUCCESS}
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  # Wrap main execution in subshell to isolate 'set -x' if debug is enabled
+  (main "$@")
+fi
