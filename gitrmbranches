@@ -18,6 +18,7 @@ require git cut grep xargs sed
 
 RED="\033[0;31m"
 NC="\033[0m" # No Color
+verbose=false
 
 # Function to extract branch name
 function branchName() {
@@ -42,6 +43,9 @@ function delUnmerged() {
   else
     echo "Deleting unmerged branches..."
     for b in "${unmerged_branches[@]}"; do
+      if $verbose; then
+        echo "Deleting branch: $b"
+      fi
       git push origin --delete "$b"
     done
   fi
@@ -53,7 +57,9 @@ function message() {
   ret=$?
   if [[ "$ret" -eq 0 ]]; then
     echo "exit $ret from last command: $command"
-    git diff development main
+    if $verbose; then
+      git diff development main
+    fi
     git gc
   else
     echo -e "${RED}exit $ret from last command: $command${NC}"
@@ -64,11 +70,27 @@ function message() {
 }
 
 mainBranch="main"
-set -e
 command=""
 trap message EXIT
 
-# Fetch and prune branches
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -v | --verbose)
+      verbose=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
+
+if $verbose; then
+  echo "Verbose mode enabled"
+  echo "Fetching and pruning branches..."
+fi
 git fetch --prune
 
 # List merged branches and delete them after confirmation
@@ -78,18 +100,30 @@ for var in "${merged_branches[@]}"; do
   read -rp "Delete branch $var (y/N)? " answer
   answer="${answer,,}"
   if [[ "$answer" == "y" ]]; then
+    if $verbose; then
+      echo "Deleting branch: $(branchName "$var")"
+    fi
     git push origin --delete "$(branchName "$var")"
   fi
 done
 
 # Dry run first
-delUnmerged "$mainBranch" 1
-
-# Ask for confirmation before deleting unmerged branches
-read -rp "About to delete all unmerged branches. Are you sure (y/N)? " var
-var="${var,,}"
-if [[ "$var" == "y" ]]; then
-  delUnmerged "$mainBranch" 0
+if $verbose; then
+  echo "Performing dry run of unmerged branch deletion..."
 fi
+res="$(delUnmerged "$mainBranch" 1)"
 
-exit 0
+if [[ "$res" == *No* ]]; then
+  printf "%s\n" "$res"
+  exit 0
+else
+  # Ask for confirmation before deleting unmerged branches
+  read -rp "About to delete all unmerged branches. Are you sure (y/N)? " var
+  var="${var,,}"
+  if [[ "$var" == "y" ]]; then
+    if $verbose; then
+      echo "Deleting all unmerged branches..."
+    fi
+    delUnmerged "$mainBranch" 0
+  fi
+fi
