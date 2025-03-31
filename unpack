@@ -1,47 +1,197 @@
 #!/usr/bin/env bash
-# unpack: Extract common file formats
+# unpack: Extract common archive file formats using appropriate tools.
+
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
-# Display usage if no parameters given
-if [[ $# -eq 0 ]]; then
-  echo "Usage: ${0##*/} <archive(s)> - extract common file formats"
-  exit 1
-fi
 
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
+# --- Constants ---
+readonly SCRIPT_NAME=$(basename "$0")
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
+readonly REQUIRED_UTILS=(
+  7z unrar unzip tar bunzip2 ar gunzip uncompress lzma xz zstd cpio arj lha
+)
 
-# Required programs
-require 7z unrar unzip tar bunzip2 ar gunzip uncompress lzma xz zstd cpio arj lha
+# --- Global Variables ---
+verbose=false
+debug=false
 
-# Loop through provided files
-for f in "$@"; do
-  if [[ ! -f "$f" ]]; then
-    echo "Error: File '$f' does not exist."
-    continue
+# --- Functions ---
+
+# Function: usage
+# Description: Displays help message and exits.
+# Arguments: None
+# Outputs: Help message to STDERR.
+function usage() {
+  cat << EOF >&2
+${SCRIPT_NAME} - Extract common archive file formats.
+
+Usage: ${SCRIPT_NAME} [OPTION]... <archive(s)>...
+
+Extracts files from various archive formats like .zip, .tar.gz, .rar, etc.
+
+Options:
+  -h, --help       Display this help message and exit.
+  -v, --verbose    Enable verbose output.
+      --debug      Enable debug mode (set -x).
+
+Arguments:
+  <archive(s)>   One or more archive files to extract.
+
+Examples:
+  ${SCRIPT_NAME} archive.zip                # Extract archive.zip
+  ${SCRIPT_NAME} file1.tar.gz file2.rar   # Extract multiple archives
+  ${SCRIPT_NAME} --verbose my_archive.7z    # Extract with verbose output
+EOF
+  exit ${EXIT_FAILURE}
+}
+
+# Function: print_error
+# Description: Prints an error message in red to STDERR.
+# Arguments: Error message string.
+# Outputs: Error message to STDERR.
+function print_error() {
+  printf "\033[1;31mError: %s\033[0m\n" "$1" >&2
+}
+
+# Function: print_info
+# Description: Prints an informational message if verbose mode is enabled.
+# Arguments: Info message string.
+# Outputs: Info message to STDOUT if verbose is true.
+function print_info() {
+  if ${verbose}; then
+    printf "\033[1;36m%s\033[0m\n" "$1"
+  fi
+}
+
+# Function: extract_file
+# Description: Extracts a single archive file based on its extension.
+# Globals: verbose
+# Arguments: Archive file path.
+# Outputs: Extraction progress/output to STDOUT/STDERR.
+# Returns: 0 on success, non-zero on failure or unsupported format.
+function extract_file() {
+  local file="$1"
+  local exit_code=${EXIT_SUCCESS}
+
+  if [[ ! -f "$file" ]]; then
+    print_error "File '$file' does not exist."
+    return ${EXIT_FAILURE}
   fi
 
-  echo "Extracting '$f'..."
-  case "$f" in
-    *.7z) 7z x "$f" ;;
-    *.tar.bz2 | *.tbz2) tar xvjf "$f" ;;
-    *.bz2) bunzip2 "$f" ;;
-    *.deb) ar vx "$f" ;;
-    *.tar.gz | *.tgz) tar xvzf "$f" ;;
-    *.gz) gunzip "$f" ;;
-    *.tar.xz) tar xvf "$f" ;;
-    *.tar) tar xvf "$f" ;;
-    *.rar) unrar x "$f" ;;
-    *.zip) unzip "$f" ;;
-    *.Z) uncompress "$f" ;;
-    *.lzma | *.tlzma) lzma -d "$f" ;;
-    *.xz) xz -d "$f" ;;
-    *.zst) zstd -d "$f" ;;
-    *.cpio) cpio -idmv < "$f" ;;
-    *.arj) arj x "$f" ;;
-    *.lha | *.lzh) lha x "$f" ;;
-    *) echo "Error: Unsupported file format for '$f'" ;;
+  print_info "Attempting to extract '$file'..."
+  case "$file" in
+    *.7z) 7z x "$file" ;;
+    *.tar.bz2 | *.tbz2) tar xvjf "$file" ;;
+    *.bz2) bunzip2 "$file" ;;
+    *.deb) ar vx "$file" ;;
+    *.tar.gz | *.tgz) tar xvzf "$file" ;;
+    *.gz) gunzip "$file" ;;
+    *.tar.xz) tar xvf "$file" ;; # tar usually auto-detects xz
+    *.tar) tar xvf "$file" ;;
+    *.rar) unrar x "$file" ;;
+    *.zip) unzip "$file" ;;
+    *.Z) uncompress "$file" ;;
+    *.lzma | *.tlzma) lzma -d "$file" ;;
+    *.xz) xz -d "$file" ;;
+    *.zst) zstd -d "$file" ;;
+    *.cpio) cpio -idmv < "$file" ;;
+    *.arj) arj x "$file" ;;
+    *.lha | *.lzh) lha x "$file" ;;
+    *)
+      print_error "Unsupported file format for '$file'"
+      exit_code=${EXIT_FAILURE}
+      ;;
   esac
-done
+
+  if [[ ${exit_code} -eq ${EXIT_SUCCESS} ]]; then
+    print_info "Successfully extracted '$file'."
+  fi
+
+  return ${exit_code}
+}
+
+# Function: main
+# Description: Main execution logic of the script.
+# Globals: verbose, debug, REQUIRED_UTILS
+# Arguments: Command line arguments passed to the script.
+# Outputs: Extraction status messages.
+# Returns: 0 if all files extracted successfully, 1 otherwise.
+function main() {
+  local files_to_extract=()
+  local overall_status=${EXIT_SUCCESS}
+
+  # Parse command-line options
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h | --help)
+        usage
+        ;;
+      -v | --verbose)
+        verbose=true
+        shift
+        ;;
+      --debug)
+        debug=true
+        set -x
+        shift
+        ;;
+      --)
+        shift                    # Consume '--'
+        files_to_extract+=("$@") # Treat remaining args as files
+        break                    # Stop option processing
+        ;;
+      -*)
+        print_error "Invalid option: $1"
+        usage
+        ;;
+      *)
+        # Assume start of file arguments
+        files_to_extract+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  # Append any remaining arguments after option parsing (if no '--' was used)
+  files_to_extract+=("$@")
+
+  # Check if any files were provided
+  if [[ ${#files_to_extract[@]} -eq 0 ]]; then
+    print_error "No archive files specified."
+    usage
+  fi
+
+  # Source required utilities
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  source "${script_dir}/require.sh"
+  require_or_exit "${REQUIRED_UTILS[@]}"
+
+  # Process each file
+  local file
+  for file in "${files_to_extract[@]}"; do
+    if ! extract_file "$file"; then
+      overall_status=${EXIT_FAILURE}
+      # Decide whether to continue or stop on error. Currently continues.
+      print_error "Failed to extract '$file' or format unsupported."
+    fi
+  done
+
+  # If debug mode was enabled, turn it off before exiting
+  ${debug} && set +x
+
+  if [[ ${overall_status} -eq ${EXIT_SUCCESS} ]]; then
+    print_info "All specified archives processed."
+  else
+    print_error "One or more archives could not be processed successfully."
+  fi
+
+  exit ${overall_status}
+}
+
+# --- Main Execution ---
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
