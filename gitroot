@@ -1,18 +1,75 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2155,SC1090,SC1091
+######################################################################
+# gitroot - Print the root directory of the current Git repository
+######################################################################
 set -euo pipefail
 shopt -s inherit_errexit
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
 
-require git
+readonly SCRIPT_NAME=$(basename "$0")
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
 
-# Get the root directory of the Git repository
-if ! root=$(git rev-parse --show-toplevel 2> /dev/null); then
-  echo "Error: Not a Git repository. Exiting..."
-  exit 1
+function usage() {
+  cat << EOF
+${SCRIPT_NAME} - Print the root directory of the current Git repository
+
+Usage: ${SCRIPT_NAME} [OPTION]
+
+Options:
+  -h, --help    Display this help message
+  -v, --verbose Enable verbose output
+  --debug       Enable debug output
+
+Examples:
+  ${SCRIPT_NAME}          # Print Git root directory
+  ${SCRIPT_NAME} --debug  # Enable debug mode
+EOF
+  exit ${EXIT_FAILURE}
+}
+
+function print_error() {
+  printf "\033[1;31m%s\033[0m\n" "$1" >&2
+}
+
+function main() {
+  local verbose=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -v | --verbose)
+        verbose=true
+        shift
+        ;;
+      --debug)
+        set -x
+        shift
+        ;;
+      -h | --help) usage ;;
+      *)
+        print_error "Invalid option: $1"
+        usage
+        ;;
+    esac
+  done
+
+  require git
+
+  local root
+  if ! root=$(git rev-parse --show-toplevel 2> /dev/null); then
+    print_error "Error: Not a Git repository"
+    exit ${EXIT_FAILURE}
+  fi
+
+  ${verbose} && print_info "Git repository root: ${root}"
+  printf "%s\n" "${root}"
+  return ${EXIT_SUCCESS}
+}
+
+# Source required utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/require.sh"
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-
-echo "$root"
-exit 0
