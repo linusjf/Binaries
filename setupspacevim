@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+# shellcheck disable=SC2155,SC1090,SC1091,SC2015
 #######################################################################
 # @author      : Linus Fernandes (linusfernandes@gmail.com)
 # @file        : setupspacevim
@@ -10,148 +10,232 @@
 set -euo pipefail
 shopt -s inherit_errexit
 
-parentpath="$(dirname "$(readlink -f "$0")")"
+readonly SCRIPT_NAME=$(basename "$0")
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
+readonly BASH_VERSION_REQUIRED="4.4"
+readonly SPACEVIM_INSTALL_SCRIPT="https://spacevim.org/install.sh"
 
-if [[ -e "${parentpath}/internet.sh" ]]; then
-  # shellcheck disable=SC1091
-  source "${parentpath}/internet.sh"
-fi
-
-# Set Bash version
-BASH_VERSION_REQUIRED="4.4"
-if [ "${BASH_VERSION}" \< "$BASH_VERSION_REQUIRED" ]; then
-  echo "Error: Bash version $BASH_VERSION_REQUIRED or higher is required."
-  exit 1
-fi
-
-# shellcheck disable=SC1091
-source "$parentpath/require.sh"
-
-# Check if Configurations repository exists
-if [[ ! -d "${HOME}/Configurations" ]]; then
-  echo "ERROR: The repository https://github.com/linusjf/Configurations is not found at ~/Configurations."
-  echo "INFO: This repository contains the necessary configuration files for SpaceVim."
-  read -p "Would you like to clone it now? (y/n) " -n 1 -r
-  echo
-  if [[ $REPLY =~ ^[Yy]$ ]]; then
-    require git
-    git clone https://github.com/linusjf/Configurations "${HOME}/Configurations"
-  else
-    read -p "Continue anyway? (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-      exit 1
-    fi
-  fi
-fi
-
-usage() {
-  echo "Usage: $0 [OPTION]"
-  echo ""
-  echo "Options:"
-  echo " -h Display this help message"
-  echo " -t Use init.toml not init.vim"
-  echo ""
-  exit 0
-}
-
-# Define variables
-HOME_DIR="$HOME"
-SPACEVIM_INSTALL_SCRIPT="https://spacevim.org/install.sh"
+verbose=false
+dry_run=false
 use_toml=false
 
-# Parse command-line options
-while getopts ":ht" opt; do
-  case $opt in
-    h) usage ;;
-    t) use_toml=true ;;
-    \?)
-      echo "Invalid option: -$OPTARG"
+function print_warning() {
+  printf "\033[1;33m%s\033[0m\n" "$1" >&2
+}
+
+function print_info() {
+  printf "\033[1;36m%s\033[0m\n" "$1"
+}
+
+function print_error() {
+  printf "\033[1;31m%s\033[0m\n" "$1" >&2
+}
+
+function usage() {
+  cat << EOF
+${SCRIPT_NAME} - Set up SpaceVim with custom configurations
+
+Usage: ${SCRIPT_NAME} [OPTION]
+
+Options:
+  -d, --dry-run    Show what would be done without making changes
+  -v, --verbose    Enable verbose output
+  --debug          Enable debug output
+  -t, --toml       Use init.toml instead of init.vim
+  -h, --help       Display this help message
+
+Examples:
+  ${SCRIPT_NAME}                # Normal operation
+  ${SCRIPT_NAME} -d             # Dry run mode
+  ${SCRIPT_NAME} -v             # Verbose mode
+  ${SCRIPT_NAME} --debug        # Debug mode
+  ${SCRIPT_NAME} -t             # Use TOML configuration
+EOF
+  exit ${EXIT_FAILURE}
+}
+
+function require_commands() {
+  local missing_deps=()
+  for dep in "$@"; do
+    if ! command -v "$dep" &> /dev/null; then
+      missing_deps+=("$dep")
+    fi
+  done
+
+  if [[ ${#missing_deps[@]} -gt 0 ]]; then
+    print_error "Missing dependencies:"
+    for dep in "${missing_deps[@]}"; do
+      print_error "  - ${dep}"
+    done
+    return ${EXIT_FAILURE}
+  fi
+}
+
+function check_bash_version() {
+  if [[ "${BASH_VERSION}" < "${BASH_VERSION_REQUIRED}" ]]; then
+    print_error "Error: Bash version ${BASH_VERSION_REQUIRED} or higher is required."
+    return ${EXIT_FAILURE}
+  fi
+}
+
+function check_configurations_repo() {
+  if [[ ! -d "${HOME}/Configurations" ]]; then
+    print_error "ERROR: The repository https://github.com/linusjf/Configurations is not found at ~/Configurations."
+    print_info "INFO: This repository contains the necessary configuration files for SpaceVim."
+    read -rp "Would you like to clone it now? (y/n) " -n 1 -r
+    echo
+    if [[ "${REPLY}" =~ ^[Yy]$ ]]; then
+      require_commands git
+      if ${dry_run}; then
+        print_info "[DRY RUN] Would clone Configurations repo"
+      else
+        git clone https://github.com/linusjf/Configurations "${HOME}/Configurations"
+      fi
+    else
+      read -rp "Continue anyway? (y/n) " -n 1 -r
+      echo
+      [[ "${REPLY}" =~ ^[Nn]$ ]] && return ${EXIT_FAILURE}
+    fi
+  fi
+}
+
+function clean_existing_configs() {
+  local home_dir="$1"
+  if [[ -d "${home_dir}/.vim" || -d "${home_dir}/.config/nvim" || -d "${home_dir}/.SpaceVim" ]]; then
+    print_warning "WARNING: Existing Vim/Neovim configuration detected."
+    read -rp "This will remove your existing configuration. Continue? (y/n) " -n 1 -r
+    echo
+    if [[ ! "${REPLY}" =~ ^[Yy]$ ]]; then
+      return ${EXIT_FAILURE}
+    fi
+
+    for dir in "${home_dir}/.vim" "${home_dir}/.config/nvim"; do
+      if [[ -d "${dir}" ]] && [[ "$(readlink "${dir}" 2> /dev/null)" =~ \.?SpaceVim$ ]]; then
+        ${dry_run} && print_info "[DRY RUN] Would remove: ${dir}" || rm "${dir}"
+      fi
+    done
+
+    for dir in "${home_dir}/.cache/SpaceVim" "${home_dir}/.SpaceVim" "${home_dir}/.SpaceVim.d"; do
+      if [[ -d "${dir}" ]]; then
+        ${dry_run} && print_info "[DRY RUN] Would remove: ${dir}" || rm -rf "${dir}"
+      fi
+    done
+  fi
+}
+
+function install_spacevim() {
+  local home_dir="$1"
+  ${verbose} && print_info "Downloading SpaceVim installation script..."
+  if ${dry_run}; then
+    print_info "[DRY RUN] Would download and install SpaceVim"
+    return
+  fi
+
+  curl -sLfO "${SPACEVIM_INSTALL_SCRIPT}"
+  chmod +x ./install.sh
+
+  if ! ./install.sh --checkRequirements; then
+    print_error "ERROR: SpaceVim requirements check failed."
+    read -rp "Continue anyway? (y/n) " -n 1 -r
+    echo
+    if [[ "${REPLY}" =~ ^[Nn]$ ]]; then
+      rm -f ./install.sh
+      return ${EXIT_FAILURE}
+    fi
+  fi
+
+  ${verbose} && print_info "Installing SpaceVim..."
+  ./install.sh
+  rm -f ./install.sh
+}
+
+function configure_spacevim() {
+  local home_dir="$1"
+  local use_toml="$2"
+
+  if [[ ! -d "${home_dir}/.SpaceVim.d" ]]; then
+    ${dry_run} && print_info "[DRY RUN] Would create .SpaceVim.d directory" || mkdir -p "${home_dir}/.SpaceVim.d"
+  fi
+
+  ${verbose} && print_info "Configuring SpaceVim..."
+  if ${use_toml}; then
+    config_file="${home_dir}/Configurations/init.toml"
+    target_file="${home_dir}/.SpaceVim.d/init.toml"
+    if [[ -f "${config_file}" ]]; then
+      ${dry_run} && print_info "[DRY RUN] Would link ${config_file} to ${target_file}" || ln -sf "${config_file}" "${target_file}"
+      ${verbose} && print_info "Linked ${config_file} to ${target_file}"
+
+      if [[ -d "${home_dir}/Configurations/autoload" ]]; then
+        ${dry_run} && print_info "[DRY RUN] Would link autoload directory" || ln -sf "${home_dir}/Configurations/autoload" "${home_dir}/.SpaceVim.d/autoload"
+        ${verbose} && print_info "Linked autoload directory"
+      fi
+    else
+      print_error "Error: Configuration file '${config_file}' not found."
+      return ${EXIT_FAILURE}
+    fi
+  else
+    config_file="${home_dir}/Configurations/init.vim"
+    target_file="${home_dir}/.SpaceVim.d/init.vim"
+    if [[ -f "${config_file}" ]]; then
+      ${dry_run} && print_info "[DRY RUN] Would link ${config_file} to ${target_file}" || ln -sf "${config_file}" "${target_file}"
+      ${verbose} && print_info "Linked ${config_file} to ${target_file}"
+    else
+      print_error "Error: Configuration file '${config_file}' not found."
+      return ${EXIT_FAILURE}
+    fi
+  fi
+}
+
+function main() {
+  local parentpath
+  parentpath="$(dirname "$(readlink -f "$0")")"
+
+  if [[ -e "${parentpath}/internet.sh" ]]; then
+    source "${parentpath}/internet.sh"
+  fi
+
+  source "${parentpath}/require.sh"
+
+  check_bash_version || return ${EXIT_FAILURE}
+  check_configurations_repo || return ${EXIT_FAILURE}
+  clean_existing_configs "${HOME}" || return ${EXIT_FAILURE}
+  install_spacevim "${HOME}" || return ${EXIT_FAILURE}
+  configure_spacevim "${HOME}" "${use_toml}" || return ${EXIT_FAILURE}
+
+  print_info "SpaceVim setup completed successfully!"
+  print_info "Launch vim/neovim to start using SpaceVim"
+  return ${EXIT_SUCCESS}
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -d | --dry-run)
+      dry_run=true
+      shift
+      ;;
+    -v | --verbose)
+      verbose=true
+      shift
+      ;;
+    --debug)
+      set -x
+      shift
+      ;;
+    -t | --toml)
+      use_toml=true
+      shift
+      ;;
+    -h | --help) usage ;;
+    *)
+      print_error "Invalid option: $1"
       usage
       ;;
   esac
 done
 
-# Ensure dependencies
-require curl rm mv ln readlink mkdir
-
-# Check for existing Vim/Neovim configurations
-if [[ -d "${HOME_DIR}/.vim" || -d "${HOME_DIR}/.config/nvim" || -d "${HOME_DIR}/.SpaceVim" ]]; then
-  echo "WARNING: Existing Vim/Neovim configuration detected."
-  read -p "This will remove your existing configuration. Continue? (y/n) " -n 1 -r
-  echo
-  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    exit 1
-  fi
-
-  # Remove existing SpaceVim directories
-  for dir in "${HOME_DIR}/.vim" "${HOME_DIR}/.config/nvim"; do
-    if [[ -d "$dir" ]] && [[ "$(readlink "${dir}" 2> /dev/null)" =~ \.?SpaceVim$ ]]; then
-      rm "$dir"
-    fi
-  done
-
-  for dir in "${HOME_DIR}/.cache/SpaceVim" "${HOME_DIR}/.SpaceVim" "${HOME_DIR}/.SpaceVim.d"; do
-    if [ -d "$dir" ]; then
-      rm -rf "$dir"
-    fi
-  done
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
 
-# Install SpaceVim
-echo "Downloading SpaceVim installation script..."
-curl -sLfO "$SPACEVIM_INSTALL_SCRIPT"
-chmod +x ./install.sh
-
-echo "Checking SpaceVim requirements..."
-if ! ./install.sh --checkRequirements; then
-  echo "ERROR: SpaceVim requirements check failed."
-  read -p "Continue anyway? (y/n) " -n 1 -r
-  echo
-  if [[ $REPLY =~ ^[Nn]$ ]]; then
-    rm -f ./install.sh
-    exit 1
-  fi
-fi
-
-echo "Installing SpaceVim..."
-./install.sh
-
-# Create .SpaceVim.d directory and default.toml
-if [[ ! -d "${HOME}/.SpaceVim.d" ]]; then
-  mkdir -p "${HOME}/.SpaceVim.d"
-fi
-
-# Configure SpaceVim
-echo "Configuring SpaceVim..."
-if "$use_toml"; then
-  config_file="${HOME_DIR}/Configurations/init.toml"
-  target_file="${HOME_DIR}/.SpaceVim.d/init.toml"
-  if [ -f "$config_file" ]; then
-    ln -sf "$config_file" "$target_file"
-    echo "Linked $config_file to $target_file"
-
-    if [ -d "${HOME_DIR}/Configurations/autoload" ]; then
-      ln -sf "${HOME_DIR}/Configurations/autoload" "${HOME_DIR}/.SpaceVim.d/autoload"
-      echo "Linked autoload directory"
-    fi
-  else
-    echo "Error: Configuration file '$config_file' not found."
-    exit 1
-  fi
-else
-  config_file="${HOME_DIR}/Configurations/init.vim"
-  target_file="${HOME_DIR}/.SpaceVim.d/init.vim"
-  if [ -f "$config_file" ]; then
-    ln -sf "$config_file" "$target_file"
-    echo "Linked $config_file to $target_file"
-  else
-    echo "Error: Configuration file '$config_file' not found."
-    exit 1
-  fi
-fi
-
-rm -f ./install.sh
-echo "SpaceVim setup completed successfully!"
-echo "Launch vim/neovim to start using SpaceVim"
-exit 0
+exit ${EXIT_SUCCESS}
