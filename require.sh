@@ -1,38 +1,29 @@
 #!/usr/bin/env bash
+#
+# Library for checking command and environment variable dependencies.
+# Provides functions to check if required commands exist in PATH or if
+# required environment variables are set and non-empty. Allows specifying
+# behavior (warn or exit) upon failure.
+#
 
-# Enhanced dependency checking utility
-#
-# Description:
-#   This script provides a function to check for required commands
-#   with improved cross-platform compatibility and better error handling
-#
-# Functions:
-#   require - Checks for required commands
-#   require_or_warn - Checks for commands but only warns if missing
-#   require_or_exit - Checks for commands and exits if missing
+# shellcheck disable=SC2155,SC1090,SC1091
+set -euo pipefail
+shopt -s inherit_errexit
+
+# Check for required commands with optional exit behavior.
 #
 # Globals:
 #   None
-#
 # Arguments:
-#   $@ - List of commands to check
-#
-# Returns:
-#   0 - All dependencies are present
-#   1 - Missing dependencies found
-
-# Check for required commands with optional exit behavior
-#
-# Arguments:
-#   $1 - "warn" or "exit" (optional, default: "exit")
-#   $@ - List of commands to check
-#
+#   $1 - Behavior: "warn" or "exit" (optional, default: "exit").
+#   $@ - List of command names to check.
 # Outputs:
-#   Error message to STDERR if dependencies are missing
-#
+#   Writes error messages to STDERR if dependencies are missing.
 # Returns:
-#   0 - All dependencies are present
-#   1 - Missing dependencies found
+#   0 if all dependencies are present.
+#   1 if behavior is "warn" and dependencies are missing.
+#   Exits with 1 if behavior is "exit" and dependencies are missing.
+#
 function require() {
   local behavior="exit"
   local missing_deps=()
@@ -68,28 +59,54 @@ function require() {
   fi
 }
 
-# Convenience function that only warns about missing dependencies
+# Convenience function that only warns about missing dependencies.
+# Calls 'require' with "warn" behavior.
+#
+# Globals:
+#   None
+# Arguments:
+#   $@ - List of command names to check.
+# Outputs:
+#   Writes error messages to STDERR if dependencies are missing.
+# Returns:
+#   0 if all dependencies are present.
+#   1 if dependencies are missing.
+#
 function require_or_warn() {
   require warn "$@"
 }
 
-# Convenience function that exits on missing dependencies
+# Convenience function that exits on missing dependencies.
+# Calls 'require' with "exit" behavior.
+#
+# Globals:
+#   None
+# Arguments:
+#   $@ - List of command names to check.
+# Outputs:
+#   Writes error messages to STDERR if dependencies are missing.
+# Returns:
+#   0 if all dependencies are present.
+#   Exits with 1 if dependencies are missing.
+#
 function require_or_exit() {
   require exit "$@"
 }
 
-# Check for required environment variables with optional exit behavior
+# Check for required environment variables with optional exit behavior.
 #
+# Globals:
+#   None
 # Arguments:
-#   $1 - "warn" or "exit" (optional, default: "exit")
-#   $@ - List of environment variable names to check
-#
+#   $1 - Behavior: "warn" or "exit" (optional, default: "exit").
+#   $@ - List of environment variable names to check.
 # Outputs:
-#   Error message to STDERR if variables are unset or empty
-#
+#   Writes error messages to STDERR if variables are unset or empty.
 # Returns:
-#   0 - All variables are set and non-empty
-#   1 - Missing variables found
+#   0 if all variables are set and non-empty.
+#   1 if behavior is "warn" and variables are missing.
+#   Exits with 1 if behavior is "exit" and variables are missing.
+#
 function require_env_vars() {
   local behavior="exit"
   local missing_vars=()
@@ -127,18 +144,42 @@ function require_env_vars() {
   return 0 # Return 0 explicitly on success
 }
 
-# Convenience function that only warns about missing environment variables
+# Convenience function that only warns about missing environment variables.
+# Calls 'require_env_vars' with "warn" behavior.
+#
+# Globals:
+#   None
+# Arguments:
+#   $@ - List of environment variable names to check.
+# Outputs:
+#   Writes error messages to STDERR if variables are missing.
+# Returns:
+#   0 if all variables are present and non-empty.
+#   1 if variables are missing.
+#
 function require_env_vars_or_warn() {
   require_env_vars warn "$@"
 }
 
-# Convenience function that exits on missing environment variables
+# Convenience function that exits on missing environment variables.
+# Calls 'require_env_vars' with "exit" behavior.
+#
+# Globals:
+#   None
+# Arguments:
+#   $@ - List of environment variable names to check.
+# Outputs:
+#   Writes error messages to STDERR if variables are missing.
+# Returns:
+#   0 if all variables are present and non-empty.
+#   Exits with 1 if variables are missing.
+#
 function require_env_vars_or_exit() {
   require_env_vars exit "$@"
 }
 
-
-# Check if script is being sourced or executed
+# --- Self-Tests ---
+# Executed only when the script is run directly, not sourced.
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   # If executed directly, run tests
   echo "Testing require functionality..."
@@ -154,7 +195,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   # Test with non-existent command (should exit)
   # We need to run this in a subshell to catch the exit
   echo "Testing require_or_exit with missing command..."
-  if ( require_or_exit nonexistent_command ); then
+  if (require_or_exit nonexistent_command); then
     echo "require_or_exit test failed (did not exit)" >&2
     exit 1
   else
@@ -176,15 +217,15 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
   # Test require_env_vars_or_warn with missing var
   if require_env_vars_or_warn TEST_VAR_UNSET; then
-     echo "require_env_vars_or_warn test failed (returned 0 for missing var)" >&2
-     exit 1
+    echo "require_env_vars_or_warn test failed (returned 0 for missing var)" >&2
+    exit 1
   else
-     echo "require_env_vars_or_warn test passed (returned 1 for missing var)"
+    echo "require_env_vars_or_warn test passed (returned 1 for missing var)"
   fi
 
   # Test require_env_vars_or_exit with missing var (in subshell)
   echo "Testing require_env_vars_or_exit with missing var..."
-   if ( require_env_vars_or_exit TEST_VAR_UNSET ); then
+  if (require_env_vars_or_exit TEST_VAR_UNSET); then
     echo "require_env_vars_or_exit test failed (did not exit)" >&2
     exit 1
   else

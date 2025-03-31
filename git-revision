@@ -1,29 +1,184 @@
 #!/usr/bin/env bash
+#
+# Outputs Git revision information based on the current repository state.
+# Provides both a full 'git describe' like output appended with the total
+# revision count, and a cleaner version tag appended with the revision count.
+# Handles repositories without tags or commits gracefully.
+
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
 
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
+# --- Constants ---
+readonly SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
+readonly EXIT_USAGE=2
+readonly REQUIRED_UTILS=("git")
+readonly DEFAULT_VERSION="0.0.0-0-g0000000" # Default if git describe fails
+readonly DEFAULT_REVISION="0"               # Default if git rev-list fails
 
-require git
+# --- Global Variables ---
+debug=false # Flag for debug mode
 
-# Ensure script is executed within a Git repository
-if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-  echo "Error: Not a Git repository. Exiting..."
-  exit 1
+# --- Functions ---
+
+# Print an error message to STDERR.
+# Globals: None
+# Arguments:
+#   $1: The error message string.
+# Outputs:
+#   Writes the error message, prefixed with "Error: " and colored red, to STDERR.
+# Returns: None
+function print_error() {
+  printf "\033[0;31mError: %s\033[0m\n" "$1" >&2
+}
+
+# Display usage information and exit.
+# Globals:
+#   SCRIPT_NAME
+#   REQUIRED_UTILS
+#   EXIT_USAGE
+# Arguments: None
+# Outputs:
+#   Writes usage information to STDERR.
+# Returns:
+#   Exits with status EXIT_USAGE.
+function usage() {
+  cat << EOF >&2
+${SCRIPT_NAME} - Output Git revision information.
+
+Usage: ${SCRIPT_NAME} [OPTIONS]
+
+Outputs two lines:
+1. Full Git describe string with revision count appended (e.g., v1.2.3-5-gabcdef-10).
+2. Cleaned version (tag only) with revision count appended (e.g., v1.2.3.10).
+
+Handles repositories without tags or commits by using default values.
+
+Options:
+  -h, --help       Display this help message and exit.
+      --debug      Enable debug mode (set -x).
+
+Requires:
+  - Git command line tool (${REQUIRED_UTILS[*]}).
+  - Must be run inside a Git repository.
+
+Examples:
+  ${SCRIPT_NAME}
+  ${SCRIPT_NAME} --debug
+EOF
+  exit ${EXIT_USAGE}
+}
+
+# Parse command-line arguments.
+# Globals:
+#   debug
+# Arguments:
+#   $@: The command-line arguments passed to the script.
+# Outputs:
+#   May write error messages via print_error and usage.
+#   May enable debug mode (set -x).
+# Returns: None
+function parse_arguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h | --help)
+        usage
+        ;;
+      --debug)
+        debug=true
+        # Debug mode is activated later, just before calling main logic
+        shift
+        ;;
+      -*)
+        print_error "Invalid option: $1"
+        usage
+        ;;
+      *)
+        # No positional arguments expected
+        print_error "Unknown argument: $1"
+        usage
+        ;;
+    esac
+    # This check prevents infinite loops if an unexpected argument is somehow
+    # not handled by the cases above or if shift is missed.
+    if [[ $# -gt 0 && "$1" == "${1-}" ]]; then # Check if $1 exists before shifting
+      shift
+    fi
+  done
+}
+
+# Main script logic.
+# Globals:
+#   SCRIPT_DIR
+#   REQUIRED_UTILS
+#   DEFAULT_VERSION
+#   DEFAULT_REVISION
+#   EXIT_FAILURE
+#   EXIT_SUCCESS
+# Arguments:
+#   $@: The command-line arguments passed from the script invocation.
+# Outputs:
+#   Writes version strings to STDOUT.
+#   May write error messages via print_error.
+# Returns:
+#   EXIT_SUCCESS on successful execution.
+#   EXIT_FAILURE on error (e.g., not a git repo, missing dependencies).
+function main() {
+  parse_arguments "$@"
+
+  # Activate debug mode if requested
+  if [[ "${debug}" == true ]]; then
+    set -x
+  fi
+
+  # Source require.sh and check dependencies
+  source "${SCRIPT_DIR}/require.sh"
+  require_or_exit "${REQUIRED_UTILS[@]}"
+
+  # Ensure script is executed within a Git repository
+  if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    print_error "Not a Git repository. Exiting..."
+    exit ${EXIT_FAILURE}
+  fi
+
+  # Get project version, handling errors/empty repositories
+  local project_version
+  project_version=$(git describe --tags --long 2> /dev/null || echo "${DEFAULT_VERSION}")
+
+  # Extract the clean version part (tag or leading part before count/hash)
+  local clean_version
+  # Regex to capture the part before the optional '-<count>-g<hash>'
+  if [[ "${project_version}" =~ ^(.*)-[0-9]+-g[0-9a-fA-F]+$ ]]; then
+    clean_version="${BASH_REMATCH[1]}"
+  else
+    # If it doesn't match the pattern (e.g., exact tag match or default)
+    # Use the whole string as the base for clean version
+    clean_version="${project_version}"
+  fi
+  # Further refinement: if the default version was used, extract its base
+  if [[ "${project_version}" == "${DEFAULT_VERSION}" ]]; then
+    clean_version="${DEFAULT_VERSION%%-*}" # Should be "0.0.0"
+  fi
+
+  # Get revision count efficiently, handling errors/empty repositories
+  local revision_count
+  revision_count=$(git rev-list --count HEAD 2> /dev/null || echo "${DEFAULT_REVISION}")
+
+  # Output version details
+  echo "${project_version}-${revision_count}"
+  echo "${clean_version}.${revision_count}"
+
+  exit ${EXIT_SUCCESS}
+}
+
+# --- Script Execution ---
+
+# Ensure script is run directly, not sourced
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  # Wrap main execution in subshell to isolate 'set -x' if debug is enabled
+  # and prevent it from affecting the calling shell if sourced (though the guard prevents sourcing)
+  (main "$@")
 fi
-
-# Get project version, handling empty repositories
-projectversion=$(git describe --tags --long 2> /dev/null || echo "0.0.0-0-g0000000")
-cleanversion=${projectversion%%-*}
-
-# Get revision count efficiently
-revisioncount=$(git rev-list --count HEAD 2> /dev/null || echo "0")
-
-# Output version details
-echo "$projectversion-$revisioncount"
-echo "$cleanversion.$revisioncount"
-
-exit 0
