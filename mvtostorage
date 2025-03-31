@@ -1,68 +1,129 @@
 #!/usr/bin/env bash
+######################################################################
+# Moves files matching pattern to storage/downloads directory
+######################################################################
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
 
-# Detect environment
-if [[ -d /data/data/com.termux/files/usr ]]; then
-  STORAGE_BASE="${HOME}/storage/downloads"
-elif [[ -f /etc/arch-release ]]; then
-  STORAGE_BASE="${HOME}/downloads"
-elif [[ -f /etc/lsb-release ]] && grep -q "Ubuntu" /etc/lsb-release; then
-  STORAGE_BASE="${HOME}/downloads"
-else
-  echo "Unsupported environment" >&2
-  exit 1
-fi
+readonly SCRIPT_NAME=$(basename "$0")
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
 
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0" 2> /dev/null || realpath "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh" 2> /dev/null || {
-  echo "Warning: require.sh not found, continuing without it" >&2
+verbose=false
+dry_run=false
+
+function detect_storage_base() {
+  if [[ -d /data/data/com.termux/files/usr ]]; then
+    echo "${HOME}/storage/downloads"
+  elif [[ -f /etc/arch-release ]]; then
+    echo "${HOME}/downloads"
+  elif [[ -f /etc/lsb-release ]] && grep -q "Ubuntu" /etc/lsb-release; then
+    echo "${HOME}/downloads"
+  else
+    print_error "Unsupported environment"
+    return ${EXIT_FAILURE}
+  fi
 }
 
-# Ensure necessary commands are available
-require mkdir find mv
+function usage() {
+  cat << EOF
+${SCRIPT_NAME} - Moves files to storage directory
 
-# Check if at least 2 arguments are provided
-if [[ $# -lt 2 ]]; then
-  echo "Usage: $0 [-n|--dry-run] <destination_folder> <file_pattern>"
-  echo "  -n, --dry-run   Show what would be moved without actually moving files."
-  exit 1
+Usage: ${SCRIPT_NAME} [OPTION] <destination_folder> <file_pattern>
+
+Options:
+  -d, --dry-run    Show what would be done without making changes
+  -v, --verbose    Enable verbose output
+  --debug          Enable debug output
+  -h, --help       Display this help message
+
+Examples:
+  ${SCRIPT_NAME} projects "*.pdf"          # Move all PDFs to projects folder
+  ${SCRIPT_NAME} -d temp "*.tmp"          # Dry run for temp files
+EOF
+  exit ${EXIT_FAILURE}
+}
+
+function print_error() {
+  printf "\033[1;31m%s\033[0m\n" "$1" >&2
+}
+
+function print_info() {
+  printf "\033[1;36m%s\033[0m\n" "$1"
+}
+
+function main() {
+  local storage_base
+  storage_base=$(detect_storage_base) || return ${EXIT_FAILURE}
+
+  local dest_folder=""
+  local file_pattern=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -d | --dry-run)
+        dry_run=true
+        shift
+        ;;
+      -v | --verbose)
+        verbose=true
+        shift
+        ;;
+      --debug)
+        set -x
+        shift
+        ;;
+      -h | --help) usage ;;
+      -*)
+        if [[ $# -lt 3 ]]; then
+          print_error "Error: Missing arguments"
+          usage
+        fi
+        dest_folder="$2"
+        file_pattern="$3"
+        shift 3
+        ;;
+      *)
+        if [[ $# -lt 2 ]]; then
+          print_error "Error: Missing arguments"
+          usage
+        fi
+        dest_folder="$1"
+        file_pattern="$2"
+        shift 2
+        ;;
+    esac
+  done
+
+  require mkdir find mv xargs
+
+  local full_dest="${storage_base}/${dest_folder}"
+
+  if ${dry_run}; then
+    print_info "[DRY RUN] Would create directory: $full_dest"
+    print_info "[DRY RUN] Files that would be moved:"
+    find . -type f -name "$file_pattern" -print0 | xargs -0 -I{} echo "{} -> $full_dest"
+  else
+    mkdir -p "$full_dest" || {
+      print_error "Failed to create directory $full_dest"
+      return ${EXIT_FAILURE}
+    }
+
+    find . -type f -name "$file_pattern" -print0 | xargs -0 -I{} mv {} "$full_dest" || {
+      print_error "Failed to move files"
+      return ${EXIT_FAILURE}
+    }
+
+    ${verbose} && print_info "Moved files matching '$file_pattern' to '$full_dest'"
+  fi
+
+  return ${EXIT_SUCCESS}
+}
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/require.sh"
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-
-# Initialize variables
-DRY_RUN=false
-
-# Check for dry-run flag
-if [[ "$1" == "-n" || "$1" == "--dry-run" ]]; then
-  DRY_RUN=true
-  shift # Remove flag from arguments
-fi
-
-# Assign arguments
-DEST_FOLDER="${STORAGE_BASE}/${1}"
-FILE_PATTERN="$2"
-
-if [[ "$DRY_RUN" == true ]]; then
-  echo "[DRY RUN] Would create directory: $DEST_FOLDER"
-else
-  mkdir -p "$DEST_FOLDER" || {
-    echo "Error: Failed to create directory $DEST_FOLDER" >&2
-    exit 1
-  }
-fi
-
-if [[ "$DRY_RUN" == true ]]; then
-  echo "[DRY RUN] Files that would be moved to '$DEST_FOLDER':"
-  find . -type f -name "$FILE_PATTERN" -print0 | xargs -0 -I{} echo "{} -> $DEST_FOLDER"
-else
-  # Find and move matching files
-  find . -type f -name "$FILE_PATTERN" -print0 | xargs -0 -I{} mv {} "$DEST_FOLDER" || {
-    echo "Error: Failed to move files" >&2
-    exit 1
-  }
-  echo "Files matching '$FILE_PATTERN' have been moved to '$DEST_FOLDER'."
-fi
-
-exit 0

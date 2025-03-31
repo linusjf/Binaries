@@ -1,48 +1,105 @@
 #!/usr/bin/env bash
-
 ######################################################################
-# @author      : Linus Fernandes (linusfernandes@gmail.com)
-# @file        : mkpackagedirs
-# @created     : Friday May 03, 2019 08:11:52 IST
-# @lastupdated : Sunday Mar 1, 2025 13:12:00 IST
-# @description : Creates package directories for one or more Java packages.
+# Creates package directories for one or more Java packages.
 ######################################################################
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
 
-# Ensure 'mkdir' is available
-require mkdir
+readonly SCRIPT_NAME=$(basename "$0")
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
 
-# Function to display usage information
-usage() {
-  echo "Usage: mkpackagedirs <package1> [package2] [package3] ..."
-  echo "  package - Java package name(s), e.g., 'com.example.project'"
-  echo "           Multiple packages can be provided separated by spaces."
-  exit 1
+verbose=false
+dry_run=false
+
+function usage() {
+  cat << EOF
+${SCRIPT_NAME} - Creates package directories for Java packages
+
+Usage: ${SCRIPT_NAME} [OPTION] <package1> [package2] [package3] ...
+
+Options:
+  -d, --dry-run    Show what would be done without making changes
+  -v, --verbose    Enable verbose output
+  --debug          Enable debug output
+  -h, --help       Display this help message
+
+Examples:
+  ${SCRIPT_NAME} com.example.project       # Create single package
+  ${SCRIPT_NAME} com.foo com.bar com.baz   # Create multiple packages
+  ${SCRIPT_NAME} -d com.example.test       # Dry run mode
+EOF
+  exit ${EXIT_FAILURE}
 }
 
-# Ensure at least one package name is provided
-if [[ $# -eq 0 ]]; then
-  usage
+function print_error() {
+  printf "\033[1;31m%s\033[0m\n" "$1" >&2
+}
+
+function print_info() {
+  printf "\033[1;36m%s\033[0m\n" "$1"
+}
+
+function main() {
+  local packages=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -d | --dry-run)
+        dry_run=true
+        shift
+        ;;
+      -v | --verbose)
+        verbose=true
+        shift
+        ;;
+      --debug)
+        set -x
+        shift
+        ;;
+      -h | --help) usage ;;
+      -*)
+        print_error "Invalid option: $1"
+        usage
+        ;;
+      *)
+        packages+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [[ ${#packages[@]} -eq 0 ]]; then
+    print_error "Error: At least one package name is required"
+    usage
+  fi
+
+  require mkdir
+
+  for package in "${packages[@]}"; do
+    local dir="${package//./\/}"
+
+    if ${dry_run}; then
+      print_info "[DRY RUN] Would create directory: $dir"
+    else
+      if ${verbose}; then
+        print_info "Creating directory: $dir"
+      fi
+      mkdir -p "$dir" || {
+        print_error "Failed to create directory '$dir'"
+        return ${EXIT_FAILURE}
+      }
+    fi
+  done
+
+  ${verbose} && print_info "All directories created successfully"
+  return ${EXIT_SUCCESS}
+}
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/require.sh"
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-
-# Iterate over each package name provided
-for package in "$@"; do
-  # Convert package name to directory structure (replace dots with slashes)
-  dir="${package//./\/}"
-
-  echo "Creating directory: $dir"
-
-  # Create the directory and handle errors
-  mkdir -p "$dir" || {
-    echo "Error: Failed to create directory '$dir'" >&2
-    exit 1
-  }
-done
-
-echo "All directories created successfully."
-exit 0
