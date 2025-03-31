@@ -18,6 +18,7 @@ readonly EXIT_FAILURE=1
 
 debug=false
 clear_all=false
+verbose=false
 
 usage() {
   cat << EOF
@@ -28,12 +29,14 @@ Usage: ${SCRIPT_NAME} [OPTION]
 Options:
   --all     Clear all stashes non-interactively
   --debug   Enable debug output
+  -v, --verbose Enable verbose output
   -h, --help Display this help message
 
 Examples:
   ${SCRIPT_NAME}          # Interactive stash cleaning
   ${SCRIPT_NAME} --all    # Clear all stashes immediately
   ${SCRIPT_NAME} --debug  # Interactive mode with debug output
+  ${SCRIPT_NAME} -v       # Interactive mode with verbose output
 EOF
   exit ${EXIT_FAILURE}
 }
@@ -61,6 +64,10 @@ parse_arguments() {
         ;;
       --debug)
         debug=true
+        shift
+        ;;
+      -v | --verbose)
+        verbose=true
         shift
         ;;
       -h | --help)
@@ -93,6 +100,9 @@ validate_environment() {
 }
 
 clear_all_stashes() {
+  if "${verbose}"; then
+    printf "Clearing all stashes...\n"
+  fi
   git stash clear
   printf "All stashes cleared.\n"
 }
@@ -106,11 +116,19 @@ interactive_clean() {
     return
   fi
 
-  printf "Found %d stashes:\n" "${#stashes[@]}"
+  if "${verbose}"; then
+    printf "Found %d stashes:\n" "${#stashes[@]}"
+    git stash list
+  else
+    printf "Found %d stashes:\n" "${#stashes[@]}"
+  fi
 
   for stash in "${stashes[@]}"; do
     while true; do
       printf "\nStash: %s\n" "$stash"
+      if "${verbose}"; then
+        printf "Message: %s\n" "$(git stash show -p "$stash" --format="%s" | head -1)"
+      fi
       printf "1) Yes - delete this stash\n"
       printf "2) No - keep this stash\n"
       printf "3) Show - display stash contents\n"
@@ -120,11 +138,17 @@ interactive_clean() {
       read -r choice
       case "$choice" in
         1)
+          if "${verbose}"; then
+            printf "Deleting stash %s...\n" "$stash"
+          fi
           git stash drop "$stash"
           printf "Stash %s deleted.\n" "$stash"
           break
           ;;
         2)
+          if "${verbose}"; then
+            printf "Keeping stash %s...\n" "$stash"
+          fi
           printf "Keeping stash %s.\n" "$stash"
           break
           ;;
