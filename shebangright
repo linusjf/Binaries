@@ -1,34 +1,167 @@
 #!/usr/bin/env bash
+#
+# Ensures specified script files have the correct shebang: #!/usr/bin/env bash
+
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
 
-# Check for sed dependency
-require sed
+readonly SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
+readonly EXIT_USAGE=2
+readonly REQUIRED_UTILS=("sed")
+readonly CORRECT_SHEBANG="#!/usr/bin/env bash"
 
-# Check if any files are specified
-if [ $# -eq 0 ]; then
-  printf "Error: No files specified.\n" >&2
-  exit 1
+debug=false # Flag for debug mode
+
+# Print an error message to STDERR.
+# Arguments:
+#   $1: The error message string.
+# Outputs:
+#   Writes the error message to STDERR, prefixed with "Error: ".
+function print_error() {
+  printf "\033[0;31mError: %s\033[0m\n" "$1" >&2
+}
+
+# Display usage information and exit.
+# Arguments:
+#   None
+# Outputs:
+#   Writes usage information to STDERR.
+# Returns:
+#   Exits with status ${EXIT_USAGE}.
+function usage() {
+  cat << EOF >&2
+${SCRIPT_NAME} - Ensures script files have the correct shebang.
+
+Usage: ${SCRIPT_NAME} [OPTIONS] <file1> [file2 ...]
+
+Checks and modifies the first line of specified script files to ensure
+it matches '${CORRECT_SHEBANG}'.
+
+Arguments:
+  <file>           One or more script files to check and potentially modify.
+
+Options:
+  -h, --help       Display this help message and exit.
+      --debug      Enable debug mode (set -x).
+
+Requires:
+  - ${REQUIRED_UTILS[*]} command line tools.
+
+Examples:
+  ${SCRIPT_NAME} my_script.sh another_script
+  ${SCRIPT_NAME} --debug *.sh
+EOF
+  exit ${EXIT_USAGE}
+}
+
+# Parse command-line arguments.
+# Globals:
+#   debug (modified)
+# Arguments:
+#   $@: The command-line arguments passed to the script.
+# Outputs:
+#   Stores parsed file paths in the 'files' array.
+#   Sets 'debug' flag if --debug is present.
+#   Calls usage() if --help is present or arguments are invalid.
+# Returns:
+#   None directly, but populates 'files' array and sets 'debug'. Exits on error.
+function parse_arguments() {
+  files=() # Use an array to store file paths
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h | --help)
+        usage
+        ;;
+      --debug)
+        debug=true
+        shift
+        ;;
+      -*)
+        print_error "Invalid option: $1"
+        usage
+        ;;
+      *)
+        files+=("$1") # Add to files array
+        shift
+        ;;
+    esac
+  done
+
+  # Check if any files were specified
+  if [[ ${#files[@]} -eq 0 ]]; then
+    print_error "No files specified."
+    usage
+  fi
+}
+
+# Main function containing the script's primary logic.
+# Globals:
+#   debug
+#   files
+#   SCRIPT_DIR
+#   REQUIRED_UTILS
+#   CORRECT_SHEBANG
+# Arguments:
+#   $@: The command-line arguments passed to the script.
+# Outputs:
+#   Prints error messages to STDERR if files are invalid or modification fails.
+# Returns:
+#   Exits with ${EXIT_SUCCESS} on success, ${EXIT_FAILURE} on error.
+function main() {
+  parse_arguments "$@"
+
+  # Activate debug mode if requested
+  if [[ "${debug}" == true ]]; then
+    set -x
+  fi
+
+  # Source require.sh and check dependencies
+  source "${SCRIPT_DIR}/require.sh"
+  require_or_exit "${REQUIRED_UTILS[@]}"
+
+  local return_code=${EXIT_SUCCESS} # Track overall success
+
+  # Iterate over the specified files
+  for file in "${files[@]}"; do
+    # Check if the file exists and is readable
+    if [[ ! -f "$file" ]]; then
+      print_error "File '${file}' does not exist."
+      return_code=${EXIT_FAILURE}
+      continue # Skip to the next file
+    fi
+    if [[ ! -r "$file" ]]; then
+      print_error "File '${file}' is not readable."
+      return_code=${EXIT_FAILURE}
+      continue # Skip to the next file
+    fi
+    if [[ ! -w "$file" ]]; then
+      print_error "File '${file}' is not writable."
+      return_code=${EXIT_FAILURE}
+      continue # Skip to the next file
+    fi
+
+    # Replace any #!/.../bash shebang on the first line with the correct one
+    # Using a temporary variable to hold the sed command for clarity
+    local sed_command="1s|^#![[:space:]]*/.*/bash[[:space:]]*$|${CORRECT_SHEBANG}|"
+    if ! sed -i "${sed_command}" "${file}"; then
+      print_error "Failed to modify file '${file}'."
+      return_code=${EXIT_FAILURE}
+      # sed might return non-zero even if it worked, depending on version/flags.
+      # A more robust check might involve comparing file content before/after.
+      # For now, we assume non-zero is an error.
+    fi
+  done
+
+  exit ${return_code}
+}
+
+# Ensure script is executed directly
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  # Wrap main execution in subshell to isolate 'set -x' if debug is enabled
+  (main "$@")
 fi
-
-# Iterate over the specified files
-for file in "$@"; do
-  # Check if the file exists and is readable
-  if [ ! -f "$file" ] || [ ! -r "$file" ]; then
-    printf "Error: File '%s' does not exist or is not readable.\n" "$file" >&2
-    exit 1
-  fi
-
-  # Replace usr/bin/env bash with usr/bin/env bash using sed
-  if ! sed -i 's|usr/bin/env bash|usr/bin/env bash|' "$file"; then
-    printf "Error: Failed to modify file '%s': %s\n" "$file" "$?" >&2
-    exit 1
-  fi
-done
-
-# Exit successfully
-exit 0
