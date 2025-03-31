@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
-#
+# shellcheck disable=SC2155,SC1090,SC1091 # Dynamically determined source path
 
 set -euo pipefail
 shopt -s inherit_errexit
-
-# shellcheck disable=SC2155,SC1090,SC1091 # Dynamically determined source path
 
 readonly SCRIPT_NAME=$(basename "$0")
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +12,6 @@ readonly EXIT_USAGE=2
 readonly REQUIRED_UTILS=("fdfind") # Or 'fd' depending on the system
 
 debug=false # Flag for debug mode
-
 
 #
 #
@@ -27,7 +24,7 @@ function print_error() {
 #
 #
 function usage() {
-  cat <<EOF >&2
+  cat << EOF >&2
 ${SCRIPT_NAME} - List executable files in the current directory.
 
 Usage: ${SCRIPT_NAME} [OPTIONS]
@@ -75,7 +72,7 @@ function parse_arguments() {
     # This check prevents infinite loops if an unexpected argument is somehow
     # not handled by the cases above or if shift is missed.
     if [[ $# -gt 0 && "$1" == "${1-}" ]]; then # Check if $1 exists before shifting
-       shift
+      shift
     fi
   done
 }
@@ -108,5 +105,5 @@ function main() {
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   # Wrap main execution in subshell to isolate 'set -x' if debug is enabled
-  ( main "$@" )
+  (main "$@")
 fi
