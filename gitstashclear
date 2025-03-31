@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+######################################################################
+# gitstashclear - Interactive git stash cleaner
+#
+# Displays list of git stashes and provides interactive options to:
+# - Delete individual stashes (Yes/No)
+# - Show stash contents (Show)
+# - Delete all remaining stashes (All)
+# Can also clear all stashes non-interactively with --all flag
+######################################################################
+# shellcheck disable=SC2155,SC1090,SC1091
+set -euo pipefail
+shopt -s inherit_errexit
+
+readonly SCRIPT_NAME=$(basename "$0")
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
+
+debug=false
+clear_all=false
+
+usage() {
+  cat << EOF
+${SCRIPT_NAME} - Interactive git stash cleaner
+
+Usage: ${SCRIPT_NAME} [OPTION]
+
+Options:
+  --all     Clear all stashes non-interactively
+  --debug   Enable debug output
+  -h, --help Display this help message
+
+Examples:
+  ${SCRIPT_NAME}          # Interactive stash cleaning
+  ${SCRIPT_NAME} --all    # Clear all stashes immediately
+  ${SCRIPT_NAME} --debug  # Interactive mode with debug output
+EOF
+  exit ${EXIT_FAILURE}
+}
+
+main() {
+  parse_arguments "$@"
+  setup_environment
+  validate_environment
+
+  if "${clear_all}"; then
+    clear_all_stashes
+  else
+    interactive_clean
+  fi
+
+  exit ${EXIT_SUCCESS}
+}
+
+parse_arguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --all)
+        clear_all=true
+        shift
+        ;;
+      --debug)
+        debug=true
+        shift
+        ;;
+      -h | --help)
+        usage
+        ;;
+      *)
+        printf "Error: Invalid argument '%s'\n" "$1" >&2
+        usage
+        ;;
+    esac
+  done
+}
+
+setup_environment() {
+  if "${debug}"; then
+    set -x
+  fi
+
+  local script_dir
+  script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+  source "${script_dir}/require.sh"
+  require git
+}
+
+validate_environment() {
+  if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    printf "Error: Not in a git repository\n" >&2
+    exit ${EXIT_FAILURE}
+  fi
+}
+
+clear_all_stashes() {
+  git stash clear
+  printf "All stashes cleared.\n"
+}
+
+interactive_clean() {
+  local stashes=()
+  mapfile -t stashes < <(git stash list --format="%gd" 2> /dev/null)
+
+  if [[ ${#stashes[@]} -eq 0 ]]; then
+    printf "No stashes found.\n"
+    return
+  fi
+
+  printf "Found %d stashes:\n" "${#stashes[@]}"
+
+  for stash in "${stashes[@]}"; do
+    while true; do
+      printf "\nStash: %s\n" "$stash"
+      printf "1) Yes - delete this stash\n"
+      printf "2) No - keep this stash\n"
+      printf "3) Show - display stash contents\n"
+      printf "4) All - delete all remaining stashes\n"
+      printf "Select option (1-4): "
+
+      read -r choice
+      case "$choice" in
+        1)
+          git stash drop "$stash"
+          printf "Stash %s deleted.\n" "$stash"
+          break
+          ;;
+        2)
+          printf "Keeping stash %s.\n" "$stash"
+          break
+          ;;
+        3)
+          git stash show -p "$stash"
+          ;;
+        4)
+          clear_all_stashes
+          exit ${EXIT_SUCCESS}
+          ;;
+        *)
+          printf "Invalid option. Please try again.\n" >&2
+          ;;
+      esac
+    done
+  done
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
