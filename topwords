@@ -1,38 +1,222 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2155,SC1090,SC1091
+
 set -euo pipefail
 shopt -s inherit_errexit
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
 
-require curl sort tr grep uniq head
+readonly SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
+readonly EXIT_USAGE=2
+readonly REQUIRED_UTILS=("curl" "sort" "tr" "grep" "uniq" "head")
+readonly DEFAULT_NUM_WORDS=10
+readonly DEFAULT_STOP_WORDS_FILE="stopwords.txt"
+readonly STOP_WORDS_URL="https://raw.githubusercontent.com/stopwords-iso/stopwords-en/master/stopwords-en.txt"
 
-# Number of words to display
-NUM_WORDS="${1:-10}"
-STOP_WORDS="${2:-stopwords}"
+debug=false # Flag for debug mode
+num_words=${DEFAULT_NUM_WORDS}
+stop_words_file=${DEFAULT_STOP_WORDS_FILE}
 
-# Download stopword file if not present
-if [[ ! -f "$STOP_WORDS" ]]; then
-  echo "Downloading stopwords..."
-  if ! curl -sL "https://raw.githubusercontent.com/stopwords-iso/stopwords-en/master/stopwords-en.txt" -o "$STOP_WORDS"; then
-    echo "Error: Failed to download stopwords file."
-    exit 1
+#
+#
+#
+function print_error() {
+  printf "\033[0;31mError: %s\033[0m\n" "$1" >&2
+}
+
+#
+#
+#
+function usage() {
+  cat << EOF >&2
+${SCRIPT_NAME} - Find the most frequent words in text from standard input.
+
+Usage: ${SCRIPT_NAME} [OPTIONS] [NUM_WORDS] [STOP_WORDS_FILE]
+
+Reads text from standard input, converts it to lowercase, extracts words,
+removes stopwords, counts word frequencies, and prints the top NUM_WORDS.
+
+Arguments:
+  NUM_WORDS        Optional. The number of top words to display.
+                   Defaults to ${DEFAULT_NUM_WORDS}.
+  STOP_WORDS_FILE  Optional. Path to a file containing stopwords (one per line).
+                   If the file doesn't exist, it will be downloaded from
+                   ${STOP_WORDS_URL}.
+                   Defaults to ${DEFAULT_STOP_WORDS_FILE}.
+
+Options:
+  -h, --help       Display this help message and exit.
+      --debug      Enable debug mode (set -x).
+
+Requires:
+  - ${REQUIRED_UTILS[*]} command line tools.
+
+Examples:
+  cat my_document.txt | ${SCRIPT_NAME}
+  cat my_document.txt | ${SCRIPT_NAME} 20 my_custom_stopwords.txt
+  echo "This is a test. This test is only a test." | ${SCRIPT_NAME} 5
+EOF
+  exit ${EXIT_USAGE}
+}
+
+#
+#
+#
+function parse_arguments() {
+  local positional_args=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h | --help)
+        usage
+        ;;
+      --debug)
+        debug=true
+        shift
+        ;;
+      -*)
+        print_error "Invalid option: $1"
+        usage
+        ;;
+      *)
+        positional_args+=("$1") # Collect positional arguments
+        shift
+        ;;
+    esac
+    # This check prevents infinite loops if an unexpected argument is somehow
+    # not handled by the cases above or if shift is missed.
+    # if [[ $# -gt 0 && "$1" == "${1-}" ]]; then # Check if $1 exists before shifting
+    #    shift # Shift is handled within the case statements now
+    # fi
+  done
+
+  # Assign positional arguments
+  if [[ ${#positional_args[@]} -ge 1 ]]; then
+    # Validate NUM_WORDS is a positive integer
+    if [[ ! "${positional_args[0]}" =~ ^[1-9][0-9]*$ ]]; then
+      print_error "NUM_WORDS must be a positive integer, got: '${positional_args[0]}'"
+      usage
+    fi
+    num_words="${positional_args[0]}"
   fi
-  sort -o "$STOP_WORDS" "$STOP_WORDS"
-fi
+  if [[ ${#positional_args[@]} -ge 2 ]]; then
+    stop_words_file="${positional_args[1]}"
+  fi
+  if [[ ${#positional_args[@]} -gt 2 ]]; then
+    print_error "Too many arguments provided."
+    usage
+  fi
+}
 
-# Process input, remove stopwords, and get most frequent words
-tr '[:upper:]' '[:lower:]' \
-  |
-  # Convert to lowercase
-  grep -oE "\b[a-z']{2,}\b" \
-  |
-  # Extract words (excluding single characters)
-  sort | uniq -c | sort -nr \
-  |
-  # Count occurrences and sort by frequency
-  grep -Fvwf "$STOP_WORDS" \
-  |
-  # Remove stopwords
-  head -n "$NUM_WORDS" # Display top N words
+#
+#
+#
+function download_stopwords_if_missing() {
+  local file_path="$1"
+  local url="$2"
+
+  if [[ ! -f "$file_path" ]]; then
+    echo "Info: Stopwords file '${file_path}' not found. Downloading from ${url}..." >&2
+    # Use temporary file for download to avoid partial file on error
+    local temp_file
+    temp_file=$(mktemp) || {
+      print_error "Failed to create temporary file."
+      return 1
+    }
+    # Ensure temp file is cleaned up on exit or error
+    trap 'rm -f "${temp_file}"' EXIT INT TERM
+
+    if ! curl --fail --silent --location "${url}" --output "${temp_file}"; then
+      print_error "Failed to download stopwords file from ${url}."
+      rm -f "${temp_file}" # Clean up temp file on curl error
+      return 1
+    fi
+
+    # Sort the downloaded file before moving
+    if ! sort "${temp_file}" -o "${temp_file}"; then
+      print_error "Failed to sort downloaded stopwords."
+      rm -f "${temp_file}"
+      return 1
+    fi
+
+    # Move sorted temp file to final destination
+    if ! mv "${temp_file}" "${file_path}"; then
+      print_error "Failed to move temporary stopwords file to ${file_path}."
+      rm -f "${temp_file}" # Attempt cleanup again just in case mv failed partially
+      return 1
+    fi
+    # Remove trap for this specific temp file as it's successfully moved
+    trap - EXIT INT TERM
+    echo "Info: Downloaded and sorted stopwords to '${file_path}'." >&2
+  fi
+  return 0
+}
+
+#
+#
+#
+function main() {
+  parse_arguments "$@"
+
+  # Activate debug mode if requested
+  if [[ "${debug}" == true ]]; then
+    set -x
+  fi
+
+  # Source require.sh and check dependencies
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/require.sh"
+  require_or_exit "${REQUIRED_UTILS[@]}"
+
+  # Ensure stopwords file exists, download if necessary
+  if ! download_stopwords_if_missing "${stop_words_file}" "${STOP_WORDS_URL}"; then
+    exit ${EXIT_FAILURE}
+  fi
+
+  # Process input, remove stopwords, and get most frequent words
+  # Using a variable to capture pipeline status correctly
+  local output
+  local pipe_status
+  output=$(
+    tr '[:upper:]' '[:lower:]' \
+      |
+      # Convert to lowercase
+      grep -oE "\b[a-z']{2,}\b" \
+      |
+      # Extract words (min 2 chars)
+      sort \
+      | uniq -c \
+      | sort -nr \
+      |
+      # Count occurrences and sort by frequency
+      grep --invert-match --word-regexp --file "${stop_words_file}" \
+      |
+      # Remove stopwords
+      head -n "${num_words}" # Display top N words
+  )
+  pipe_status=("${PIPESTATUS[@]}") # Capture PIPESTATUS immediately
+
+  # Check status of each command in the pipe (simplified check for non-zero)
+  for status in "${pipe_status[@]}"; do
+    # Ignore grep exit code 1 (no matches found), which is acceptable for the final grep
+    # The first grep should ideally find something, but might not if input is empty/weird
+    # The final grep (stopwords removal) might legitimately find no matches to remove
+    if [[ $status -ne 0 && $status -ne 1 ]]; then
+      print_error "Pipeline command failed with exit code ${status}."
+      exit ${EXIT_FAILURE}
+    fi
+  done
+
+  # Print the final output
+  if [[ -n "${output}" ]]; then
+    echo "${output}"
+  fi
+
+  exit ${EXIT_SUCCESS}
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  # Wrap main execution in subshell to isolate 'set -x' if debug is enabled
+  (main "$@")
+fi
