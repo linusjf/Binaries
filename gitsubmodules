@@ -1,148 +1,493 @@
 #!/usr/bin/env bash
-
-######################################################################
+#
+# @description : Automates update of git submodules in parent repo.
+#                Checks out main/dev branches in each submodule owned by
+#                GITHUB_USERNAME, merges main into dev, pushes changes,
+#                and updates the parent repo if submodules changed.
 # @author      : Linus Fernandes (linusfernandes@gmail.com)
-# @file        : gitsubmodules
 # @created     : Friday Mar 28, 2025 05:29:00 IST
 # @copyright   : Copyright (c) Linus Fernandes
-# @description : Automates update of git submodules in parent repo
-######################################################################
+
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
-RED="\033[0;31m"
-NC="\033[0m" # No Color
 
-# shellcheck disable=SC2317,SC2329
-function message() {
-  local ret=$1
-  if [ "$ret" -eq 0 ]; then
-    git diff development main
-    git gc
-  else
-    echo -e "${RED}Returning to branch development${NC}"
-    git switch development || exit 1
-  fi
-  exit "$ret"
+# --- Constants ---
+readonly SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
+readonly EXIT_USAGE=2
+readonly REQUIRED_UTILS=("git")
+readonly REQUIRED_ENV_VARS=("GITHUB_USERNAME")
+readonly MAIN_BRANCH_NAMES=("main" "master") # Accept either main or master
+readonly DEV_BRANCH="development"
+
+readonly COLOR_RED="\033[0;31m"
+readonly COLOR_GREEN="\033[0;32m"
+readonly COLOR_YELLOW="\033[0;33m"
+readonly COLOR_NC="\033[0m" # No Color
+
+# --- Global Variables ---
+verbose=false
+debug=false
+last_command=""
+initial_branch=""
+root_dir=""
+
+# --- Helper Functions ---
+
+# @description Prints an error message to STDERR.
+# Arguments:
+#   $1 - The error message string.
+# Outputs:
+#   Writes the formatted error message to STDERR.
+function print_error() {
+  printf "${COLOR_RED}Error: %s${COLOR_NC}\n" "$1" >&2
 }
 
+# @description Prints an informational message to STDOUT if verbose mode is enabled.
+# Arguments:
+#   $1 - The informational message string.
+# Outputs:
+#   Writes the formatted message to STDOUT if verbose is true.
+function print_info() {
+  if ${verbose}; then
+    printf "${COLOR_GREEN}Info: %s${COLOR_NC}\n" "$1"
+  fi
+}
+
+# @description Prints a warning message to STDERR.
+# Arguments:
+#   $1 - The warning message string.
+# Outputs:
+#   Writes the formatted warning message to STDERR.
+function print_warning() {
+  printf "${COLOR_YELLOW}Warning: %s${COLOR_NC}\n" "$1" >&2
+}
+
+# @description Displays usage information and exits.
+# Outputs:
+#   Writes usage information to STDERR.
+# Returns:
+#   Exits with status ${EXIT_USAGE}.
+function usage() {
+  cat << EOF >&2
+${SCRIPT_NAME} - Update Git submodules and parent repository.
+
+Usage: ${SCRIPT_NAME} [OPTIONS]
+
+Updates submodules owned by \$GITHUB_USERNAME by checking out main/dev,
+merging main into dev, and pushing. Updates the parent repository if
+submodules were modified.
+
+Options:
+  -h, --help       Display this help message and exit.
+  -v, --verbose    Enable verbose output.
+      --debug      Enable debug mode (set -x).
+
+Requires:
+  - Git command line tool.
+  - GITHUB_USERNAME environment variable set to your GitHub username.
+
+Examples:
+  ${SCRIPT_NAME}
+  ${SCRIPT_NAME} --verbose --debug
+EOF
+  exit ${EXIT_USAGE}
+}
+
+# @description Cleans up resources and prints final status on script exit.
+# Globals:
+#   debug
+#   last_command
+#   initial_branch
+#   root_dir
+# Outputs:
+#   Prints error or success messages.
+#   Attempts to return to the initial git branch on error.
+#   Runs git gc on success.
+function cleanup() {
+  local ret=$?
+  ${debug} && set +x # Turn off debug mode if it was on
+
+  # Return to root dir if we changed it
+  if [[ -n "${root_dir}" && "$(pwd)" != "${root_dir}" ]]; then
+    print_warning "Returning to initial directory: ${root_dir}"
+    cd "${root_dir}" || print_error "Failed to return to ${root_dir}"
+  fi
+
+  if [[ ${ret} -ne ${EXIT_SUCCESS} && ${ret} -ne ${EXIT_USAGE} ]]; then
+    print_error "(${ret}) Failed during execution."
+    [[ -n "${last_command}" ]] && print_error "Last command run: ${last_command}"
+    # Attempt to return to initial branch on error
+    if [[ -n "${initial_branch}" ]]; then
+      print_warning "Attempting to return to initial branch '${initial_branch}'..."
+      if git checkout "${initial_branch}" &> /dev/null; then
+        print_info "Successfully returned to branch '${initial_branch}'."
+      else
+        print_error "Failed to switch back to branch '${initial_branch}'. Current branch: $(git rev-parse --abbrev-ref HEAD)"
+      fi
+    fi
+  elif [[ ${ret} -eq ${EXIT_SUCCESS} ]]; then
+    print_info "Successfully executed."
+    print_info "Running garbage collection..."
+    git gc --quiet
+  fi
+  exit ${ret}
+}
+
+# @description Executes a command, printing it first if verbose, and handling errors.
+# Globals:
+#   verbose
+#   last_command
+# Arguments:
+#   $@ - The command and its arguments to execute.
+# Outputs:
+#   Prints the command being run if verbose.
+#   Prints error message if command fails.
+# Returns:
+#   The exit code of the executed command.
+function run_command() {
+  last_command="$*"
+  print_info "Running: ${last_command}"
+  if ${verbose}; then
+    "$@" # Run with output visible
+  else
+    "$@" > /dev/null 2>&1 # Run silently
+  fi
+  local ret=$?
+  if [[ ${ret} -ne 0 ]]; then
+    print_error "Command failed (Exit Code: ${ret}): ${last_command}"
+    # Error is handled by trap, just return status
+  fi
+  return ${ret}
+}
+
+# @description Parses command-line arguments.
+# Globals:
+#   verbose
+#   debug
+# Arguments:
+#   $@ - The script's command-line arguments.
+# Outputs:
+#   Sets global flags (verbose, debug).
+#   Prints error and usage messages for invalid options/arguments.
+function parse_arguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h | --help)
+        usage
+        ;;
+      -v | --verbose)
+        verbose=true
+        shift
+        ;;
+      --debug)
+        debug=true
+        set -x
+        shift
+        ;;
+      -*)
+        print_error "Invalid option: $1"
+        usage
+        ;;
+      *)
+        print_error "Unknown argument: $1"
+        usage
+        ;;
+    esac
+  done
+}
+
+# @description Gets the alternate branch name (main <-> development).
+# Arguments:
+#   $1 - The current branch name ("main" or "development").
+# Outputs:
+#   Prints the alternate branch name to STDOUT.
+# Returns:
+#   0 on success.
 function get_alt_branch() {
-  if [[ "${1}" == "main" ]]; then
-    echo "development"
+  local current_branch="${1}"
+  local main_br
+  main_br=$(get_main_branch) # Get the actual main branch name
+
+  if [[ "${current_branch}" == "${main_br}" ]]; then
+    echo "${DEV_BRANCH}"
+  elif [[ "${current_branch}" == "${DEV_BRANCH}" ]]; then
+    echo "${main_br}"
   else
-    echo "main"
+    print_error "Cannot determine alternate branch for '${current_branch}'"
+    return ${EXIT_FAILURE}
   fi
+  return ${EXIT_SUCCESS}
 }
 
-main_branch() {
-  local main_branch
-  main_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2> /dev/null)
-  main_branch=${main_branch##*/}
-  if [ "$main_branch" = "main" ] || [ "$main_branch" = "master" ]; then
-    echo "$main_branch"
-  else
-    echo "Unknown main branch" >&2
-    return 1
-  fi
+# @description Determines the main branch name (main or master).
+# Globals:
+#   MAIN_BRANCH_NAMES
+# Outputs:
+#   Prints the detected main branch name to STDOUT.
+# Returns:
+#   0 if a main branch is found, 1 otherwise.
+function get_main_branch() {
+  local remote_head_ref
+  remote_head_ref=$(git symbolic-ref refs/remotes/origin/HEAD 2> /dev/null || echo "")
+  local main_br="${remote_head_ref##*/}" # Extract branch name
+
+  for name in "${MAIN_BRANCH_NAMES[@]}"; do
+    if [[ "${main_br}" == "${name}" ]]; then
+      echo "${main_br}"
+      return ${EXIT_SUCCESS}
+    fi
+  done
+
+  # Fallback: check local branches if remote HEAD is not set or unusual
+  for name in "${MAIN_BRANCH_NAMES[@]}"; do
+    if git show-ref --verify --quiet "refs/heads/${name}"; then
+      echo "${name}"
+      return ${EXIT_SUCCESS}
+    fi
+  done
+
+  print_error "Could not determine main branch (checked: ${MAIN_BRANCH_NAMES[*]})."
+  return ${EXIT_FAILURE}
 }
 
-branch_exists() {
+# @description Checks if a local branch exists.
+# Arguments:
+#   $1 - The branch name to check.
+# Returns:
+#   0 if the branch exists locally, 1 otherwise.
+function branch_exists() {
   local branch_name="$1"
-  if git show-ref --verify --quiet "refs/heads/${branch_name}"; then
-    return 0
+  # Use rev-parse for a more robust check
+  if git rev-parse --verify --quiet "refs/heads/${branch_name}" > /dev/null; then
+    return 0 # Branch exists
   else
-    return 1
+    return 1 # Branch does not exist
   fi
 }
 
-check_remote_url() {
-  local user_id=$1
+# @description Checks if the remote origin URL contains the specified user ID.
+# Globals:
+#   GITHUB_USERNAME
+# Arguments:
+#   None (uses GITHUB_USERNAME global)
+# Returns:
+#   0 if the remote URL contains the username, 1 otherwise.
+function check_remote_url_matches_user() {
   local remote_url
   remote_url=$(git config --get remote.origin.url)
-  if [[ $remote_url == *"$user_id"* ]]; then
+  if [[ -z "${remote_url}" ]]; then
+    print_warning "Could not get remote.origin.url in $(basename "$(pwd)")"
+    return 1
+  fi
+  # Check for both HTTPS and SSH URL formats
+  if [[ "${remote_url}" == *"${GITHUB_USERNAME}"* ]]; then
     return 0
   else
     return 1
   fi
 }
 
-attach_submodules() {
-  readarray -t submodules < <(git submodule foreach --recursive | cut -d' ' -f2 | sed "s/^'\|'$//g")
+# @description Updates all git submodules recursively.
+#              For submodules owned by GITHUB_USERNAME, it checks out main,
+#              commits/pushes changes, checks out development, merges main,
+#              and pushes again.
+# Globals:
+#   GITHUB_USERNAME
+#   DEV_BRANCH
+# Outputs:
+#   Prints informational and warning messages.
+#   Runs git commands within submodules.
+# Returns:
+#   0 on success, 1 on failure during submodule processing.
+function update_submodules() {
+  print_info "Starting submodule update process..."
+  local parent_dir
+  parent_dir="$(pwd)"
 
-  # Loop through each submodule
-  (
-    for submodule in "${submodules[@]}"; do
-      orig_dir="$(pwd)"
-      cd "$submodule"
-      main_br="$(main_branch)"
-      git checkout "$main_br"
-      # update local and remote repos only if owned by user
+  # Get list of submodule paths relative to the parent repo root
+  local submodules_list
+  readarray -t submodules_list < <(git submodule status --recursive | awk '{print $2}')
 
-      if check_remote_url "$GITHUB_USERNAME"; then
-        git add .
-        # check if submodule is dirty i.e., files have been changed
-        added_files="$(git status --porcelain | awk -F, 'NF>0 {print $2}')"
-        if [ -n "${added_files}" ]; then
-          git commit -m "Added local files ${added_files} to submodule"
-          git push
-        fi
-      fi
-      if branch_exists "development"; then
-        git checkout development
-        git pull origin development
-        # update local and remote repos only if owned by user
-        if check_remote_url "$GITHUB_USERNAME"; then
-          git merge "$main_br"
-          git push
-        fi
-      fi
-      if ! check_remote_url "$GITHUB_USERNAME"; then
-        printf "Warning: Submodule %s cannot be updated since it's an external dependency.\n" "$submodule"
-      fi
-      cd "$orig_dir"
-    done
-  )
+  if [[ ${#submodules_list[@]} -eq 0 ]]; then
+    print_info "No submodules found to update."
+    return ${EXIT_SUCCESS}
+  fi
 
-  git submodule update --remote
-  return 0
+  print_info "Found submodules: ${submodules_list[*]}"
+
+  for submodule_path in "${submodules_list[@]}"; do
+    print_info "Processing submodule: ${submodule_path}"
+    cd "${parent_dir}/${submodule_path}" || {
+      print_error "Failed to enter submodule directory: ${submodule_path}"
+      return ${EXIT_FAILURE} # Stop processing if cannot cd
+    }
+
+    local submodule_main_br
+    if ! submodule_main_br=$(get_main_branch); then
+      print_warning "Skipping submodule ${submodule_path}: Could not determine its main branch."
+      cd "${parent_dir}" || exit ${EXIT_FAILURE} # Ensure we return
+      continue                                   # Skip to next submodule
+    fi
+    print_info "Submodule main branch: ${submodule_main_br}"
+
+    # Check ownership before attempting modifications
+    if ! check_remote_url_matches_user; then
+      print_warning "Skipping update for external submodule: ${submodule_path}"
+      cd "${parent_dir}" || exit ${EXIT_FAILURE}
+      continue
+    fi
+
+    print_info "Updating owned submodule: ${submodule_path}"
+
+    # Update main branch
+    run_command git checkout "${submodule_main_br}"
+    run_command git pull origin "${submodule_main_br}" --ff-only # Pull first
+
+    # Check for local changes to commit
+    if ! git diff --quiet HEAD || ! git diff --cached --quiet; then
+      print_info "Found local changes in ${submodule_path} on ${submodule_main_br}. Committing..."
+      run_command git add .
+      # Use a generic commit message or check git status --porcelain
+      local commit_msg="Auto-commit local changes in submodule ${submodule_path}"
+      run_command git commit -m "${commit_msg}" || print_warning "Commit failed (maybe no changes to commit) in ${submodule_path}"
+      run_command git push origin "${submodule_main_br}"
+    else
+      print_info "No local changes to commit on ${submodule_main_br} in ${submodule_path}."
+    fi
+
+    # Update development branch if it exists
+    if branch_exists "${DEV_BRANCH}"; then
+      print_info "Updating ${DEV_BRANCH} branch in ${submodule_path}..."
+      run_command git checkout "${DEV_BRANCH}"
+      run_command git pull origin "${DEV_BRANCH}" --ff-only  # Pull first
+      run_command git merge --no-edit "${submodule_main_br}" # Merge main into dev
+      run_command git push origin "${DEV_BRANCH}"
+    else
+      print_warning "Branch '${DEV_BRANCH}' does not exist in submodule ${submodule_path}. Skipping merge."
+    fi
+
+    # Return to parent directory
+    cd "${parent_dir}" || {
+      print_error "Failed to return to parent directory from ${submodule_path}"
+      return ${EXIT_FAILURE}
+    }
+    print_info "Finished processing submodule: ${submodule_path}"
+  done
+
+  print_info "Running 'git submodule update --remote --merge' in parent repo..."
+  run_command git submodule update --remote --merge # Use merge strategy
+
+  print_info "Submodule update process finished."
+  return ${EXIT_SUCCESS}
 }
 
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/require.sh"
+# --- Main Function ---
+function main() {
+  trap cleanup EXIT
 
-if [[ -e "${SCRIPT_DIR}/internet.sh" ]]; then
-  # shellcheck disable=SC1091
-  source "${SCRIPT_DIR}/internet.sh"
+  parse_arguments "$@"
+
+  # --- Setup Environment & Checks ---
+  source "${SCRIPT_DIR}/require.sh"
+  require_or_exit "${REQUIRED_UTILS[@]}"
+  require_env_vars_or_exit "${REQUIRED_ENV_VARS[@]}"
+
+  # Optional: Check internet connection if internet.sh exists
+  if [[ -f "${SCRIPT_DIR}/internet.sh" ]]; then
+    print_info "Checking internet connection..."
+    source "${SCRIPT_DIR}/internet.sh" # internet.sh should handle errors/exit
+  fi
+
+  # Ensure script is inside a Git repository and get root
+  if ! root_dir="$(git rev-parse --show-toplevel)"; then
+    print_error "Not a Git repository."
+    exit ${EXIT_FAILURE}
+  fi
+  cd "${root_dir}" || {
+    print_error "Failed to change directory to Git root."
+    exit ${EXIT_FAILURE}
+  }
+  print_info "Running in Git repository root: ${root_dir}"
+
+  # Store initial branch
+  initial_branch=$(git rev-parse --abbrev-ref HEAD)
+  print_info "Initial branch: ${initial_branch}"
+
+  local parent_main_br
+  if ! parent_main_br=$(get_main_branch); then
+    # Error already printed by get_main_branch
+    exit ${EXIT_FAILURE}
+  fi
+  print_info "Parent repository main branch: ${parent_main_br}"
+
+  # Ensure development branch exists locally in parent repo
+  if ! branch_exists "${DEV_BRANCH}"; then
+    print_warning "Local branch '${DEV_BRANCH}' does not exist in parent repo. Creating..."
+    # Try creating from origin/development, fallback to main branch
+    if git rev-parse --verify --quiet "origin/${DEV_BRANCH}" > /dev/null; then
+      run_command git checkout -t "origin/${DEV_BRANCH}"
+    else
+      print_info "Creating '${DEV_BRANCH}' based on '${parent_main_br}'."
+      run_command git checkout -b "${DEV_BRANCH}" "${parent_main_br}"
+    fi
+    # Switch back if we weren't on dev initially
+    if [[ "${initial_branch}" != "${DEV_BRANCH}" ]]; then
+      run_command git switch "${initial_branch}"
+    fi
+  fi
+
+  # --- Core Logic ---
+  if ! update_submodules; then
+    print_error "Failed during submodule update process."
+    exit ${EXIT_FAILURE}
+  fi
+
+  # Check if submodules were updated (parent repo is dirty)
+  # 'git status --porcelain' shows ' M submodule_path' if updated
+  if git status --porcelain | grep -q ' M '; then
+    print_info "Submodules updated. Committing changes in parent repository..."
+    local commit_msg="feat: Update submodules $(date +'%Y-%m-%d %H:%M:%S')"
+    run_command git add . # Add all changes (including updated submodules)
+    print_info "Staging updated submodules."
+    if ${verbose}; then
+      git status # Show status only in verbose mode before commit
+    fi
+    run_command git commit -m "${commit_msg}"
+
+    # Push the current branch
+    print_info "Pushing changes on current branch '${initial_branch}'..."
+    run_command git push origin "${initial_branch}"
+
+    # Update the alternate branch if it's not the current one
+    local alt_branch
+    if alt_branch=$(get_alt_branch "${initial_branch}"); then
+      print_info "Merging changes into alternate branch '${alt_branch}'..."
+      run_command git checkout "${alt_branch}"
+      run_command git merge --no-edit "${initial_branch}"
+      run_command git push origin "${alt_branch}"
+      # Optionally return to the initial branch or stay on the alt branch
+      # Let's return to the initial branch for consistency
+      print_info "Returning to initial branch '${initial_branch}'..."
+      run_command git switch "${initial_branch}"
+    else
+      print_warning "Could not determine alternate branch for '${initial_branch}'. Skipping merge."
+    fi
+
+    # Final submodule update on the initial branch after potential merges
+    print_info "Running final 'git submodule update --remote --merge'..."
+    run_command git submodule update --remote --merge
+
+    print_info "Parent repository updated successfully."
+  else
+    print_info "No submodule changes detected in the parent repository. Nothing to commit."
+  fi
+}
+
+# --- Script Execution ---
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-
-require git
-
-trap 'ret=$?; message $ret' EXIT
-
-curr_branch="$(git branch --show-current)"
-
-if ! git show-ref --verify --quiet refs/heads/development; then
-  git branch --create-reflog development
-fi
-
-attach_submodules
-
-if git status --porcelain | grep '^ M'; then
-  echo "feat: Update submodules $(date)" > commit.txt
-  git add .
-  git status
-  git commit -F commit.txt
-  git push origin "$curr_branch"
-  alt_branch="$(get_alt_branch "$curr_branch")"
-  git checkout "${alt_branch}"
-  git merge "$curr_branch"
-  git push origin "${alt_branch}"
-  git checkout development
-  git submodule update --remote
-  echo "Submodules updated."
-else
-  echo "Submodules already up to date."
-fi
-
-exit 0
