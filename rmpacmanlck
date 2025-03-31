@@ -1,23 +1,51 @@
 #!/usr/bin/env bash
+#
+# Removes the pacman database lock file if it exists.
+# Typically located at /var/lib/pacman/db.lck.
+
+# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
-# Source the require.sh file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
+
+# Source the require.sh file using the conventional method
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/require.sh"
 
 # Ensure `rm` command exists
 require rm
 
-# Remove the pacman database lock file
-LOCK_FILE="${PREFIX:-""}/var/lib/pacman/db.lck"
+# --- Functions ---
 
-# shellcheck disable=SC2015
-if [[ -e "$LOCK_FILE" ]]; then
-  rm -f "$LOCK_FILE" && echo "Removed: $LOCK_FILE" || {
-    echo "Error: Failed to remove $LOCK_FILE" >&2
-    exit 1
-  }
-else
-  echo "Warning: Lock file does not exist: $LOCK_FILE"
+# Function: main
+# Description: Main logic of the script. Removes the pacman lock file.
+# Globals:
+#   PREFIX (potentially used for lock file path)
+# Arguments: None
+# Outputs:
+#   Writes status messages to STDOUT.
+#   Writes error messages to STDERR.
+# Returns:
+#   0 if lock file is removed successfully or does not exist.
+#   1 if removal fails.
+main() {
+  local lock_file
+  lock_file="${PREFIX:-""}/var/lib/pacman/db.lck"
+
+  if [[ -e "$lock_file" ]]; then
+    if rm -f "$lock_file"; then
+      echo "Removed: $lock_file"
+    else
+      echo "Error: Failed to remove $lock_file" >&2
+      return 1
+    fi
+  else
+    echo "Warning: Lock file does not exist: $lock_file"
+  fi
+  return 0
+}
+
+# --- Main Execution ---
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
