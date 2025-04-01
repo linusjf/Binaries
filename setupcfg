@@ -155,7 +155,7 @@ function main() {
     .bashrc .bash_profile .bash_aliases .bash_logout
     .gitconfig .gitrc .github .gitguardian.yml .emacs .sqliterc
     .ssh .termux .tmux.conf .vimrc .jupyter .aider.conf.yml
-    .aider.model.settings.yml templates .gitignore_global
+    .aider.model.settings.yml templates .gitignore_global .shellcheckrc
   )
 
   require_commands cp rm ln git
