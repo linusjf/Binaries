@@ -305,81 +305,8 @@ function check_remote_url_matches_user() {
 #   0 on success, 1 on failure during submodule processing.
 function update_submodules() {
   print_info "Starting submodule update process..."
-  local parent_dir
-  parent_dir="$(pwd)"
 
-  # Get list of submodule paths relative to the parent repo root
-  local submodules_list
-  readarray -t submodules_list < <(git submodule status --recursive | awk '{print $2}')
-
-  if [[ ${#submodules_list[@]} -eq 0 ]]; then
-    print_info "No submodules found to update."
-    return ${EXIT_SUCCESS}
-  fi
-
-  print_info "Found submodules: ${submodules_list[*]}"
-
-  for submodule_path in "${submodules_list[@]}"; do
-    print_info "Processing submodule: ${submodule_path}"
-    cd "${parent_dir}/${submodule_path}" || {
-      print_error "Failed to enter submodule directory: ${submodule_path}"
-      return ${EXIT_FAILURE} # Stop processing if cannot cd
-    }
-
-    local submodule_main_br
-    if ! submodule_main_br=$(get_main_branch); then
-      print_warning "Skipping submodule ${submodule_path}: Could not determine its main branch."
-      cd "${parent_dir}" || exit ${EXIT_FAILURE} # Ensure we return
-      continue                                   # Skip to next submodule
-    fi
-    print_info "Submodule main branch: ${submodule_main_br}"
-
-    # Check ownership before attempting modifications
-    if ! check_remote_url_matches_user; then
-      print_warning "Skipping update for external submodule: ${submodule_path}"
-      cd "${parent_dir}" || exit ${EXIT_FAILURE}
-      continue
-    fi
-
-    print_info "Updating owned submodule: ${submodule_path}"
-
-    # Update main branch
-    run_command git checkout "${submodule_main_br}"
-    run_command git pull origin "${submodule_main_br}" --ff-only # Pull first
-
-    # Check for local changes to commit
-    if ! git diff --quiet HEAD || ! git diff --cached --quiet; then
-      print_info "Found local changes in ${submodule_path} on ${submodule_main_br}. Committing..."
-      run_command git add .
-      # Use a generic commit message or check git status --porcelain
-      local commit_msg="Auto-commit local changes in submodule ${submodule_path}"
-      run_command git commit -m "${commit_msg}" || print_warning "Commit failed (maybe no changes to commit) in ${submodule_path}"
-      run_command git push origin "${submodule_main_br}"
-    else
-      print_info "No local changes to commit on ${submodule_main_br} in ${submodule_path}."
-    fi
-
-    # Update development branch if it exists
-    if branch_exists "${DEV_BRANCH}"; then
-      print_info "Updating ${DEV_BRANCH} branch in ${submodule_path}..."
-      run_command git checkout "${DEV_BRANCH}"
-      run_command git pull origin "${DEV_BRANCH}" --ff-only  # Pull first
-      run_command git merge --no-edit "${submodule_main_br}" # Merge main into dev
-      run_command git push origin "${DEV_BRANCH}"
-    else
-      print_warning "Branch '${DEV_BRANCH}' does not exist in submodule ${submodule_path}. Skipping merge."
-    fi
-
-    # Return to parent directory
-    cd "${parent_dir}" || {
-      print_error "Failed to return to parent directory from ${submodule_path}"
-      return ${EXIT_FAILURE}
-    }
-    print_info "Finished processing submodule: ${submodule_path}"
-  done
-
-  print_info "Running 'git submodule update --remote --merge' in parent repo..."
-  run_command git submodule update --remote --merge # Use merge strategy
+  run_command git submodule update --remote --checkout --force
 
   print_info "Submodule update process finished."
   return ${EXIT_SUCCESS}
@@ -448,7 +375,7 @@ function main() {
 
   # Check if submodules were updated (parent repo is dirty)
   # 'git status --porcelain' shows ' M submodule_path' if updated
-  if ! git diff --submodule > /dev/null; then
+  if ! git diff --submodule --quiet; then
     print_info "Submodules updated. Committing changes in parent repository..."
     local commit_msg="feat: Update submodules $(date +'%Y-%m-%d %H:%M:%S')"
     run_command git add . # Add all changes (including updated submodules)
