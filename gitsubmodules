@@ -37,7 +37,7 @@ function print_error() {
 # @description Print info message to STDOUT if verbose
 # @arg $1 string Info message
 function print_info() {
-  [[ "${verbose}" == true ]] && printf "${COLOR_GREEN}Info: %s${COLOR_NC}\n" "$1"
+  [[ "${verbose}" == true ]] && printf "${COLOR_GREEN}Info: %s${COLOR_NC}\n" "$1" || true
 }
 
 # @description Print warning message to STDERR
