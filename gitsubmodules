@@ -211,7 +211,7 @@ function main() {
 
   for branch in "${branches[@]}"; do
     # Remove the '*' character that indicates the current branch
-    branch="${branch#* }"
+    branch="${branch#*}"
     echo "Processing branch: $branch"
     # Update submodules
     update_submodules false || exit ${EXIT_FAILURE}
