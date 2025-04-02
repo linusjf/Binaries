@@ -10,7 +10,6 @@
 # shellcheck disable=SC2155,SC1090,SC1091,SC2015
 set -euo pipefail
 shopt -s inherit_errexit
-
 # --- Constants ---
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly EXIT_SUCCESS=0
@@ -18,7 +17,6 @@ readonly EXIT_FAILURE=1
 readonly EXIT_USAGE=2
 readonly REQUIRED_UTILS=("git")
 readonly MAIN_BRANCH_NAMES=("main" "master")
-readonly DEV_BRANCH="development"
 
 readonly COLOR_RED="\033[0;31m"
 readonly COLOR_GREEN="\033[0;32m"
@@ -209,17 +207,17 @@ function main() {
   fi
   cd "${root_dir}" || exit ${EXIT_FAILURE}
 
-  for branch in $(git branch --list); do
+  readarray -t branches < <(git branch --list)
+
+  for branch in "${branches[@]}"; do
     # Remove the '*' character that indicates the current branch
-    branch=${branch#* }
+    branch="${branch#* }"
     echo "Processing branch: $branch"
-    # Add your custom logic here
     # Update submodules
     update_submodules false || exit ${EXIT_FAILURE}
 
     # Commit changes if needed
     if ! git diff --submodule --quiet; then
-      run_command git branch
       run_command git add .
       run_command git commit -m "feat: Update submodules $(date +'%Y-%m-%d %H:%M:%S')"
       run_command git push origin "${branch}"
