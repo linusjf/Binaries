@@ -207,7 +207,7 @@ function main() {
   fi
   cd "${root_dir}" || exit ${EXIT_FAILURE}
 
-  readarray -t branches < <(git branch --list)
+  readarray -t branches < <(git branch --list | xargs)
 
   for branch in "${branches[@]}"; do
     # Remove the '*' character that indicates the current branch
