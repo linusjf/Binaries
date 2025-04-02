@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 #
-# @description : Automates update of git submodules in parent repo.
-#                Checks out main/dev branches in each submodule owned by
-#                GITHUB_USERNAME, merges main into dev, pushes changes,
-#                and updates the parent repo if submodules changed.
-# @author      : Linus Fernandes (linusfernandes@gmail.com)
-# @created     : Friday Mar 28, 2025 05:29:00 IST
-# @copyright   : Copyright (c) Linus Fernandes
+# Automates update of git submodules in parent repo.
+# Checks out main/dev branches in each submodule owned by GITHUB_USERNAME,
+# merges main into dev, pushes changes, and updates parent repo if submodules changed.
+#
+# @author Linus Fernandes (linusfernandes@gmail.com)
+# @copyright Copyright (c) Linus Fernandes
 
 # shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
@@ -14,235 +13,122 @@ shopt -s inherit_errexit
 
 # --- Constants ---
 readonly SCRIPT_NAME=$(basename "$0")
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly EXIT_SUCCESS=0
 readonly EXIT_FAILURE=1
 readonly EXIT_USAGE=2
 readonly REQUIRED_UTILS=("git")
-readonly REQUIRED_ENV_VARS=("GITHUB_USERNAME")
-readonly MAIN_BRANCH_NAMES=("main" "master") # Accept either main or master
+readonly MAIN_BRANCH_NAMES=("main" "master")
 readonly DEV_BRANCH="development"
 
 readonly COLOR_RED="\033[0;31m"
 readonly COLOR_GREEN="\033[0;32m"
 readonly COLOR_YELLOW="\033[0;33m"
-readonly COLOR_NC="\033[0m" # No Color
+readonly COLOR_NC="\033[0m"
 
-# --- Global Variables ---
-verbose=false
-debug=false
-last_command=""
-initial_branch=""
-root_dir=""
+# --- Functions ---
 
-# --- Helper Functions ---
-
-# @description Prints an error message to STDERR.
-# Arguments:
-#   $1 - The error message string.
-# Outputs:
-#   Writes the formatted error message to STDERR.
+# @description Print error message to STDERR
+# @arg $1 string Error message
 function print_error() {
   printf "${COLOR_RED}Error: %s${COLOR_NC}\n" "$1" >&2
 }
 
-# @description Prints an informational message to STDOUT if verbose mode is enabled.
-# Arguments:
-#   $1 - The informational message string.
-# Outputs:
-#   Writes the formatted message to STDOUT if verbose is true.
+# @description Print info message to STDOUT if verbose
+# @arg $1 string Info message
 function print_info() {
-  if ${verbose}; then
-    printf "${COLOR_GREEN}Info: %s${COLOR_NC}\n" "$1"
-  fi
+  [[ "${verbose}" = true ]] && printf "${COLOR_GREEN}Info: %s${COLOR_NC}\n" "$1"
 }
 
-# @description Prints a warning message to STDERR.
-# Arguments:
-#   $1 - The warning message string.
-# Outputs:
-#   Writes the formatted warning message to STDERR.
+# @description Print warning message to STDERR
+# @arg $1 string Warning message
 function print_warning() {
   printf "${COLOR_YELLOW}Warning: %s${COLOR_NC}\n" "$1" >&2
 }
 
-# @description Displays usage information and exits.
-# Outputs:
-#   Writes usage information to STDERR.
-# Returns:
-#   Exits with status ${EXIT_USAGE}.
+# @description Display usage information
 function usage() {
   cat << EOF >&2
-${SCRIPT_NAME} - Update Git submodules and parent repository.
+${SCRIPT_NAME} - Update Git submodules and parent repository
 
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
-Updates submodules owned by \$GITHUB_USERNAME by checking out main/dev,
-merging main into dev, and pushing. Updates the parent repository if
-submodules were modified.
-
 Options:
-  -h, --help       Display this help message and exit.
-  -v, --verbose    Enable verbose output.
-      --debug      Enable debug mode (set -x).
-
-Requires:
-  - Git command line tool.
-  - GITHUB_USERNAME environment variable set to your GitHub username.
+  -h, --help       Display this help
+  -v, --verbose    Enable verbose output
+  --debug          Enable debug mode
 
 Examples:
   ${SCRIPT_NAME}
-  ${SCRIPT_NAME} --verbose --debug
+  ${SCRIPT_NAME} --verbose
 EOF
   exit ${EXIT_USAGE}
 }
 
-# @description Cleans up resources and prints final status on script exit.
-# Globals:
-#   debug
-#   last_command
-#   initial_branch
-#   root_dir
-# Outputs:
-#   Prints error or success messages.
-#   Attempts to return to the initial git branch on error.
-#   Runs git gc on success.
+# @description Clean up resources on exit
 function cleanup() {
-  local ret=$?
-  ${debug} && set +x # Turn off debug mode if it was on
+  local -r ret=$?
+  [[ "${debug}" = true ]] && set +x
 
-  # Return to root dir if we changed it
   if [[ -n "${root_dir}" && "$(pwd)" != "${root_dir}" ]]; then
-    print_warning "Returning to initial directory: ${root_dir}"
     cd "${root_dir}" || print_error "Failed to return to ${root_dir}"
   fi
 
-  if [[ ${ret} -ne ${EXIT_SUCCESS} && ${ret} -ne ${EXIT_USAGE} ]]; then
-    print_error "(${ret}) Failed during execution."
-    [[ -n "${last_command}" ]] && print_error "Last command run: ${last_command}"
-    # Attempt to return to initial branch on error
-    if [[ -n "${initial_branch}" ]]; then
-      print_warning "Attempting to return to initial branch '${initial_branch}'..."
-      if git checkout "${initial_branch}" &> /dev/null; then
-        print_info "Successfully returned to branch '${initial_branch}'."
-      else
-        print_error "Failed to switch back to branch '${initial_branch}'. Current branch: $(git rev-parse --abbrev-ref HEAD)"
-      fi
-    fi
-  elif [[ ${ret} -eq ${EXIT_SUCCESS} ]]; then
-    print_info "Successfully executed."
-    print_info "Running garbage collection..."
-    git gc --quiet
+  if [[ ${ret} -ne ${EXIT_SUCCESS} ]]; then
+    print_error "Script failed with exit code ${ret}"
+    [[ -n "${last_command}" ]] && print_error "Last command: ${last_command}"
   fi
+
   exit ${ret}
 }
 
-# @description Executes a command, printing it first if verbose, and handling errors.
-# Globals:
-#   verbose
-#   last_command
-# Arguments:
-#   $@ - The command and its arguments to execute.
-# Outputs:
-#   Prints the command being run if verbose.
-#   Prints error message if command fails.
-# Returns:
-#   The exit code of the executed command.
+# @description Execute command with error handling
+# @arg $@ string Command to execute
 function run_command() {
   last_command="$*"
   print_info "Running: ${last_command}"
-  if ${verbose}; then
-    "$@" # Run with output visible
+  if [[ "${verbose}" = true ]]; then
+    "$@"
   else
-    "$@" > /dev/null 2>&1 # Run silently
+    "$@" > /dev/null 2>&1
   fi
-  local ret=$?
-  if [[ ${ret} -ne 0 ]]; then
-    print_error "Command failed (Exit Code: ${ret}): ${last_command}"
-    # Error is handled by trap, just return status
-  fi
+  local -r ret=$?
+  [[ ${ret} -ne 0 ]] && print_error "Command failed: ${last_command}"
   return ${ret}
 }
 
-# @description Parses command-line arguments.
-# Globals:
-#   verbose
-#   debug
-# Arguments:
-#   $@ - The script's command-line arguments.
-# Outputs:
-#   Sets global flags (verbose, debug).
-#   Prints error and usage messages for invalid options/arguments.
+# @description Parse command line arguments
+# @arg $@ array Command line arguments
 function parse_arguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -h | --help)
-        usage
-        ;;
-      -v | --verbose)
-        verbose=true
-        shift
-        ;;
+      -h | --help) usage ;;
+      -v | --verbose) verbose=true ;;
       --debug)
         debug=true
         set -x
-        shift
-        ;;
-      -*)
-        print_error "Invalid option: $1"
-        usage
         ;;
       *)
-        print_error "Unknown argument: $1"
+        print_error "Invalid argument: $1"
         usage
         ;;
     esac
+    shift
   done
 }
 
-# @description Gets the alternate branch name (main <-> development).
-# Arguments:
-#   $1 - The current branch name ("main" or "development").
-# Outputs:
-#   Prints the alternate branch name to STDOUT.
-# Returns:
-#   0 on success.
-function get_alt_branch() {
-  local current_branch="${1}"
-  local main_br
-  main_br=$(get_main_branch) # Get the actual main branch name
-
-  if [[ "${current_branch}" == "${main_br}" ]]; then
-    echo "${DEV_BRANCH}"
-  elif [[ "${current_branch}" == "${DEV_BRANCH}" ]]; then
-    echo "${main_br}"
-  else
-    print_error "Cannot determine alternate branch for '${current_branch}'"
-    return ${EXIT_FAILURE}
-  fi
-  return ${EXIT_SUCCESS}
-}
-
-# @description Determines the main branch name (main or master).
-# Globals:
-#   MAIN_BRANCH_NAMES
-# Outputs:
-#   Prints the detected main branch name to STDOUT.
-# Returns:
-#   0 if a main branch is found, 1 otherwise.
+# @description Get main branch name
+# @stdout Main branch name
 function get_main_branch() {
   local remote_head_ref
   remote_head_ref=$(git symbolic-ref refs/remotes/origin/HEAD 2> /dev/null || echo "")
-  local main_br="${remote_head_ref##*/}" # Extract branch name
 
   for name in "${MAIN_BRANCH_NAMES[@]}"; do
-    if [[ "${main_br}" == "${name}" ]]; then
-      echo "${main_br}"
+    if [[ "${remote_head_ref##*/}" == "${name}" ]]; then
+      echo "${name}"
       return ${EXIT_SUCCESS}
     fi
   done
 
-  # Fallback: check local branches if remote HEAD is not set or unusual
   for name in "${MAIN_BRANCH_NAMES[@]}"; do
     if git show-ref --verify --quiet "refs/heads/${name}"; then
       echo "${name}"
@@ -250,171 +136,67 @@ function get_main_branch() {
     fi
   done
 
-  print_error "Could not determine main branch (checked: ${MAIN_BRANCH_NAMES[*]})."
+  print_error "Could not determine main branch"
   return ${EXIT_FAILURE}
 }
 
-# @description Checks if a local branch exists.
-# Arguments:
-#   $1 - The branch name to check.
-# Returns:
-#   0 if the branch exists locally, 1 otherwise.
+# @description Check if branch exists
+# @arg $1 string Branch name
 function branch_exists() {
-  local branch_name="$1"
-  # Use rev-parse for a more robust check
-  if git rev-parse --verify --quiet "refs/heads/${branch_name}" > /dev/null; then
-    return 0 # Branch exists
-  else
-    return 1 # Branch does not exist
-  fi
+  git rev-parse --verify --quiet "refs/heads/$1" > /dev/null
 }
 
-# @description Checks if the remote origin URL contains the specified user ID.
-# Globals:
-#   GITHUB_USERNAME
-# Arguments:
-#   None (uses GITHUB_USERNAME global)
-# Returns:
-#   0 if the remote URL contains the username, 1 otherwise.
-function check_remote_url_matches_user() {
-  local remote_url
-  remote_url=$(git config --get remote.origin.url)
-  if [[ -z "${remote_url}" ]]; then
-    print_warning "Could not get remote.origin.url in $(basename "$(pwd)")"
-    return 1
-  fi
-  # Check for both HTTPS and SSH URL formats
-  if [[ "${remote_url}" == *"${GITHUB_USERNAME}"* ]]; then
-    return 0
-  else
-    return 1
-  fi
-}
-
-# @description Updates all git submodules recursively.
-#              For submodules owned by GITHUB_USERNAME, it checks out main,
-#              commits/pushes changes, checks out development, merges main,
-#              and pushes again.
-# Globals:
-#   GITHUB_USERNAME
-#   DEV_BRANCH
-# Outputs:
-#   Prints informational and warning messages.
-#   Runs git commands within submodules.
-# Returns:
-#   0 on success, 1 on failure during submodule processing.
+# @description Update all git submodules
 function update_submodules() {
-  print_info "Starting submodule update process..."
-
   run_command git submodule update --remote --checkout --force
-
-  print_info "Submodule update process finished."
-  return ${EXIT_SUCCESS}
 }
 
-# --- Main Function ---
+# @description Main function
 function main() {
   trap cleanup EXIT
 
   parse_arguments "$@"
 
-  # --- Setup Environment & Checks ---
-  source "${SCRIPT_DIR}/require.sh"
-  require_or_exit "${REQUIRED_UTILS[@]}"
-  require_env_vars_or_exit "${REQUIRED_ENV_VARS[@]}"
+  # Validate environment
+  for util in "${REQUIRED_UTILS[@]}"; do
+    if ! command -v "${util}" > /dev/null; then
+      print_error "Missing required utility: ${util}"
+      exit ${EXIT_FAILURE}
+    fi
+  done
 
-  # Optional: Check internet connection if internet.sh exists
-  if [[ -f "${SCRIPT_DIR}/internet.sh" ]]; then
-    print_info "Checking internet connection..."
-    source "${SCRIPT_DIR}/internet.sh" # internet.sh should handle errors/exit
-  fi
-
-  # Ensure script is inside a Git repository and get root
+  # Get repository root
   if ! root_dir="$(git rev-parse --show-toplevel)"; then
-    print_error "Not a Git repository."
+    print_error "Not in a Git repository"
     exit ${EXIT_FAILURE}
   fi
-  cd "${root_dir}" || {
-    print_error "Failed to change directory to Git root."
-    exit ${EXIT_FAILURE}
-  }
-  print_info "Running in Git repository root: ${root_dir}"
+  cd "${root_dir}" || exit ${EXIT_FAILURE}
 
   # Store initial branch
-  initial_branch=$(git rev-parse --abbrev-ref HEAD)
-  print_info "Initial branch: ${initial_branch}"
+  local -r initial_branch=$(git rev-parse --abbrev-ref HEAD)
+  local -r parent_main_br=$(get_main_branch) || exit ${EXIT_FAILURE}
 
-  local parent_main_br
-  if ! parent_main_br=$(get_main_branch); then
-    # Error already printed by get_main_branch
-    exit ${EXIT_FAILURE}
-  fi
-  print_info "Parent repository main branch: ${parent_main_br}"
-
-  # Ensure development branch exists locally in parent repo
+  # Ensure development branch exists
   if ! branch_exists "${DEV_BRANCH}"; then
-    print_warning "Local branch '${DEV_BRANCH}' does not exist in parent repo. Creating..."
-    # Try creating from origin/development, fallback to main branch
     if git rev-parse --verify --quiet "origin/${DEV_BRANCH}" > /dev/null; then
       run_command git checkout -t "origin/${DEV_BRANCH}"
     else
-      print_info "Creating '${DEV_BRANCH}' based on '${parent_main_br}'."
       run_command git checkout -b "${DEV_BRANCH}" "${parent_main_br}"
     fi
-    # Switch back if we weren't on dev initially
-    if [[ "${initial_branch}" != "${DEV_BRANCH}" ]]; then
-      run_command git switch "${initial_branch}"
-    fi
+    run_command git switch "${initial_branch}"
   fi
 
-  # --- Core Logic ---
-  if ! update_submodules; then
-    print_error "Failed during submodule update process."
-    exit ${EXIT_FAILURE}
-  fi
+  # Update submodules
+  update_submodules || exit ${EXIT_FAILURE}
 
-  # Check if submodules were updated (parent repo is dirty)
-  # 'git status --porcelain' shows ' M submodule_path' if updated
+  # Commit changes if needed
   if ! git diff --submodule --quiet; then
-    print_info "Submodules updated. Committing changes in parent repository..."
-    local commit_msg="feat: Update submodules $(date +'%Y-%m-%d %H:%M:%S')"
-    run_command git add . # Add all changes (including updated submodules)
-    print_info "Staging updated submodules."
-    if ${verbose}; then
-      git status # Show status only in verbose mode before commit
-    fi
-    run_command git commit -m "${commit_msg}"
-
-    # Push the current branch
-    print_info "Pushing changes on current branch '${initial_branch}'..."
+    run_command git add .
+    run_command git commit -m "feat: Update submodules $(date +'%Y-%m-%d %H:%M:%S')"
     run_command git push origin "${initial_branch}"
-
-    # Update the alternate branch if it's not the current one
-    local alt_branch
-    if alt_branch=$(get_alt_branch "${initial_branch}"); then
-      print_info "Merging changes into alternate branch '${alt_branch}'..."
-      run_command git checkout "${alt_branch}"
-      run_command git merge --no-edit "${initial_branch}"
-      run_command git push origin "${alt_branch}"
-      # Optionally return to the initial branch or stay on the alt branch
-      # Let's return to the initial branch for consistency
-      print_info "Returning to initial branch '${initial_branch}'..."
-      run_command git switch "${initial_branch}"
-    else
-      print_warning "Could not determine alternate branch for '${initial_branch}'. Skipping merge."
-    fi
-
-    # Final submodule update on the initial branch after potential merges
-    print_info "Running final 'git submodule update --remote --merge'..."
-    run_command git submodule update --remote --merge
-
-    print_info "Parent repository updated successfully."
-  else
-    print_info "No submodule changes detected in the parent repository. Nothing to commit."
   fi
 }
 
-# --- Script Execution ---
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   main "$@"
 fi
