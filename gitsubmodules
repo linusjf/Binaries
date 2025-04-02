@@ -180,7 +180,10 @@ function main() {
     fi
   done
 
-  local dev_exists=branch_exists "${DEV_BRANCH}"
+  dev_exists=false
+  if branch_exists "${DEV_BRANCH}"; then
+    dev_exists=true
+  fi
   # Get repository root
   if ! root_dir="$(git rev-parse --show-toplevel)"; then
     print_error "Not in a Git repository"
@@ -210,7 +213,7 @@ function main() {
   elif [[ "$initial_branch" == "$DEV_BRANCH" ]] && [[ "$parent_main_br" != "$DEV_BRANCH" ]]; then
     target_branch="$parent_main_br"
   else
-    "$dev_exists" && target_branch="${DEV_BRANCH}" 
+    "$dev_exists" && target_branch="${DEV_BRANCH}"
   fi
 
   # Update submodules
