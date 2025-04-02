@@ -213,11 +213,17 @@ function main() {
     # Remove the '*' character that indicates the current branch
     branch="${branch#*}"
     echo "Processing branch: $branch"
+    git checkout "$branch"
     # Update submodules
     update_submodules false || exit ${EXIT_FAILURE}
 
+    if ! git diff --quiet; then
+      echo "Stashing dirty files for branch: $branch"
+      # stash dirty files
+      git stash --include-untracked
+    fi
     # Commit changes if needed
-    if ! git diff --submodule --quiet || ! git diff --quiet; then
+    if ! git diff --submodule --quiet; then
       run_command git add .
       run_command git commit -m "feat: Update submodules $(date +'%Y-%m-%d %H:%M:%S')"
       run_command git push origin "${branch}"
