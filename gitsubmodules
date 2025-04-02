@@ -7,7 +7,7 @@
 # @author Linus Fernandes (linusfernandes@gmail.com)
 # @copyright Copyright (c) Linus Fernandes
 
-# shellcheck disable=SC2155,SC1090,SC1091
+# shellcheck disable=SC2155,SC1090,SC1091,SC2015
 set -euo pipefail
 shopt -s inherit_errexit
 
