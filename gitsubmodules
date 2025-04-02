@@ -24,6 +24,7 @@ readonly COLOR_RED="\033[0;31m"
 readonly COLOR_GREEN="\033[0;32m"
 readonly COLOR_YELLOW="\033[0;33m"
 readonly COLOR_NC="\033[0m"
+verbose=false
 
 # --- Functions ---
 
@@ -36,7 +37,7 @@ function print_error() {
 # @description Print info message to STDOUT if verbose
 # @arg $1 string Info message
 function print_info() {
-  [[ "${verbose}" = true ]] && printf "${COLOR_GREEN}Info: %s${COLOR_NC}\n" "$1"
+  [[ "${verbose}" == true ]] && printf "${COLOR_GREEN}Info: %s${COLOR_NC}\n" "$1"
 }
 
 # @description Print warning message to STDERR
@@ -217,6 +218,7 @@ function main() {
 
   # Commit changes if needed
   if ! git diff --submodule --quiet; then
+    run_command git branch
     run_command git add .
     run_command git commit -m "feat: Update submodules $(date +'%Y-%m-%d %H:%M:%S')"
     run_command git push origin "${initial_branch}"
