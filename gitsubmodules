@@ -12,7 +12,7 @@ set -euo pipefail
 shopt -s inherit_errexit
 
 # --- Constants ---
-readonly SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_NAME="$(basename "$0")"
 readonly EXIT_SUCCESS=0
 readonly EXIT_FAILURE=1
 readonly EXIT_USAGE=2
@@ -24,29 +24,36 @@ readonly COLOR_RED="\033[0;31m"
 readonly COLOR_GREEN="\033[0;32m"
 readonly COLOR_YELLOW="\033[0;33m"
 readonly COLOR_NC="\033[0m"
+
+# --- Configuration ---
 verbose=false
+debug_mode=false
 
 # --- Functions ---
 
 # @description Print error message to STDERR
 # @arg $1 string Error message
+# @output Error message to STDERR
 function print_error() {
   printf "${COLOR_RED}Error: %s${COLOR_NC}\n" "$1" >&2
 }
 
 # @description Print info message to STDOUT if verbose
 # @arg $1 string Info message
+# @output Info message to STDOUT if verbose enabled
 function print_info() {
   [[ "${verbose}" == true ]] && printf "${COLOR_GREEN}Info: %s${COLOR_NC}\n" "$1" || true
 }
 
 # @description Print warning message to STDERR
 # @arg $1 string Warning message
+# @output Warning message to STDERR
 function print_warning() {
   printf "${COLOR_YELLOW}Warning: %s${COLOR_NC}\n" "$1" >&2
 }
 
 # @description Display usage information
+# @output Usage information to STDERR
 function usage() {
   cat << EOF >&2
 ${SCRIPT_NAME} - Update Git submodules and parent repository
@@ -59,42 +66,50 @@ Options:
   --debug          Enable debug mode
 
 Examples:
+  # Basic usage
   ${SCRIPT_NAME}
+
+  # Verbose mode
   ${SCRIPT_NAME} --verbose
+
+  # Debug mode
+  ${SCRIPT_NAME} --debug
 EOF
   exit ${EXIT_USAGE}
 }
 
 # @description Clean up resources on exit
+# @arg $1 integer Exit code
 function cleanup() {
-  local -r ret=$?
-  set +x
+  local -r ret="$1"
+  [[ "${debug_mode}" == true ]] && set +x
 
-  if [[ -n "${root_dir}" && "$(pwd)" != "${root_dir}" ]]; then
+  if [[ -n "${root_dir:-}" && "$(pwd)" != "${root_dir}" ]]; then
     cd "${root_dir}" || print_error "Failed to return to ${root_dir}"
   fi
 
   if [[ ${ret} -ne ${EXIT_SUCCESS} ]]; then
     print_error "Script failed with exit code ${ret}"
-    [[ -n "${last_command}" ]] && print_error "Last command: ${last_command}"
+    [[ -n "${last_command:-}" ]] && print_error "Last command: ${last_command}"
   fi
 
-  exit ${ret}
+  exit "${ret}"
 }
 
 # @description Execute command with error handling
 # @arg $@ string Command to execute
+# @return Exit code of command
 function run_command() {
   last_command="$*"
   print_info "Running: ${last_command}"
-  if [[ "${verbose}" = true ]]; then
+  if [[ "${verbose}" == true || "${debug_mode}" == true ]]; then
     "$@"
   else
     "$@" > /dev/null 2>&1
   fi
-  local -r ret=$?
+  local -r ret="$?"
   [[ ${ret} -ne 0 ]] && print_error "Command failed: ${last_command}"
-  return ${ret}
+  return "${ret}"
 }
 
 # @description Parse command line arguments
@@ -105,6 +120,7 @@ function parse_arguments() {
       -h | --help) usage ;;
       -v | --verbose) verbose=true ;;
       --debug)
+        debug_mode=true
         set -x
         ;;
       *)
@@ -118,9 +134,10 @@ function parse_arguments() {
 
 # @description Get main branch name
 # @stdout Main branch name
+# @return 0 if successful, 1 otherwise
 function get_main_branch() {
   local remote_head_ref
-  remote_head_ref=$(git symbolic-ref refs/remotes/origin/HEAD 2> /dev/null || echo "")
+  remote_head_ref="$(git symbolic-ref refs/remotes/origin/HEAD 2> /dev/null || echo "")"
 
   for name in "${MAIN_BRANCH_NAMES[@]}"; do
     if [[ "${remote_head_ref##*/}" == "${name}" ]]; then
@@ -136,12 +153,11 @@ function get_main_branch() {
     fi
   done
 
-  # Check if there's only one branch
   local branch_count
-  branch_count=$(git branch --list | wc -l | tr -d ' ')
+  branch_count="$(git branch --list | wc -l | tr -d ' ')"
   if [[ "${branch_count}" -eq 1 ]]; then
     local single_branch
-    single_branch=$(git branch --show-current)
+    single_branch="$(git branch --show-current)"
     print_info "Only one branch found (${single_branch}), using as main branch"
     echo "${single_branch}"
     return ${EXIT_SUCCESS}
@@ -153,14 +169,17 @@ function get_main_branch() {
 
 # @description Check if branch exists
 # @arg $1 string Branch name
+# @return 0 if branch exists, 1 otherwise
 function branch_exists() {
   git rev-parse --verify --quiet "refs/heads/$1" > /dev/null
 }
 
 # @description Update all git submodules
+# @arg $1 boolean Whether to merge changes
+# @return Exit code of git submodule command
 function update_submodules() {
-  merge="$1"
-  if "$merge"; then
+  local -r merge="$1"
+  if "${merge}"; then
     run_command git submodule update --remote --merge
   else
     run_command git submodule update --remote --checkout --force
@@ -168,8 +187,10 @@ function update_submodules() {
 }
 
 # @description Main function
+# @arg $@ array Command line arguments
+# @return Exit code
 function main() {
-  trap cleanup EXIT
+  trap 'cleanup $?' EXIT
   parse_arguments "$@"
 
   # Validate environment
@@ -180,11 +201,8 @@ function main() {
     fi
   done
 
-  dev_exists=false
-  if branch_exists "${DEV_BRANCH}"; then
-    dev_exists=true
-  fi
   # Get repository root
+  local root_dir
   if ! root_dir="$(git rev-parse --show-toplevel)"; then
     print_error "Not in a Git repository"
     exit ${EXIT_FAILURE}
@@ -192,28 +210,35 @@ function main() {
   cd "${root_dir}" || exit ${EXIT_FAILURE}
 
   # Store initial branch
-  local -r initial_branch=$(git rev-parse --abbrev-ref HEAD)
-  local -r parent_main_br=$(get_main_branch) || exit ${EXIT_FAILURE}
+  local -r initial_branch="$(git rev-parse --abbrev-ref HEAD)"
+  local -r parent_main_br="$(get_main_branch)" || exit ${EXIT_FAILURE}
 
-  # Check development branch exists remotely
-  if [[ "$initial_branch" != "$DEV_BRANCH" ]]; then
-    if ! "$dev_exists"; then
-      if git rev-parse --verify --quiet "origin/${DEV_BRANCH}" > /dev/null; then
-        run_command git checkout -t "origin/${DEV_BRANCH}"
-        dev_exists=true
-      fi
-      run_command git switch "${initial_branch}"
-    fi
+  # Check development branch status
+  local dev_exists=false
+  if branch_exists "${DEV_BRANCH}"; then
+    dev_exists=true
   fi
 
+  # Handle branch switching if needed
+  if [[ "${initial_branch}" != "${DEV_BRANCH}" ]] && ! "${dev_exists}"; then
+    if git rev-parse --verify --quiet "origin/${DEV_BRANCH}" > /dev/null; then
+      run_command git checkout -t "origin/${DEV_BRANCH}"
+      dev_exists=true
+    fi
+    run_command git switch "${initial_branch}"
+  fi
+
+  # Determine target branch for merging
   local target_branch=""
   local one_branch_only=false
-  if [[ "$initial_branch" == "$DEV_BRANCH" ]] && [[ "$parent_main_br" == "$DEV_BRANCH" ]]; then
+  if [[ "${initial_branch}" == "${DEV_BRANCH}" ]] && [[ "${parent_main_br}" == "${DEV_BRANCH}" ]]; then
     one_branch_only=true
-  elif [[ "$initial_branch" == "$DEV_BRANCH" ]] && [[ "$parent_main_br" != "$DEV_BRANCH" ]]; then
-    target_branch="$parent_main_br"
+  elif [[ "${initial_branch}" == "${DEV_BRANCH}" ]] && [[ "${parent_main_br}" != "${DEV_BRANCH}" ]]; then
+    target_branch="${parent_main_br}"
   else
-    "$dev_exists" && target_branch="${DEV_BRANCH}"
+    if "${dev_exists}"; then
+      target_branch="${DEV_BRANCH}"
+    fi
   fi
 
   # Update submodules
@@ -225,14 +250,17 @@ function main() {
     run_command git add .
     run_command git commit -m "feat: Update submodules $(date +'%Y-%m-%d %H:%M:%S')"
     run_command git push origin "${initial_branch}"
+
     if ! "${one_branch_only}"; then
       run_command git switch "${target_branch}"
       run_command git pull
       run_command git merge "${initial_branch}"
       run_command git push
-      run_command git switch "$initial_branch"
+      run_command git switch "${initial_branch}"
     fi
   fi
+
+  # merge submodules
   update_submodules true
 }
 
