@@ -67,7 +67,7 @@ EOF
 # @description Clean up resources on exit
 function cleanup() {
   local -r ret=$?
-  [[ "${debug}" = true ]] && set +x
+  set +x
 
   if [[ -n "${root_dir}" && "$(pwd)" != "${root_dir}" ]]; then
     cd "${root_dir}" || print_error "Failed to return to ${root_dir}"
@@ -104,7 +104,6 @@ function parse_arguments() {
       -h | --help) usage ;;
       -v | --verbose) verbose=true ;;
       --debug)
-        debug=true
         set -x
         ;;
       *)
