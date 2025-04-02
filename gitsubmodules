@@ -217,7 +217,7 @@ function main() {
     update_submodules false || exit ${EXIT_FAILURE}
 
     # Commit changes if needed
-    if ! git diff --submodule --quiet; then
+    if ! git diff --submodule --quiet || ! git diff --quiet; then
       run_command git add .
       run_command git commit -m "feat: Update submodules $(date +'%Y-%m-%d %H:%M:%S')"
       run_command git push origin "${branch}"
