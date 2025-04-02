@@ -184,6 +184,10 @@ function update_submodules() {
   fi
 }
 
+function get_current_branch() {
+  git branch --show-current
+}
+
 # @description Main function
 # @arg $@ array Command line arguments
 # @return Exit code
@@ -206,6 +210,8 @@ function main() {
     exit ${EXIT_FAILURE}
   fi
   cd "${root_dir}" || exit ${EXIT_FAILURE}
+
+  current_branch="$(get_current_branch)"
 
   readarray -t branches < <(git for-each-ref --format='%(refname:short)' refs/heads)
 
@@ -232,6 +238,7 @@ function main() {
     update_submodules true
   done
 
+  git switch "$current_branch"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
