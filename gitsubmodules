@@ -191,7 +191,7 @@ function main() {
     if ! git diff --quiet --ignore-submodules; then
       print_warning "Stash dirty files for branch: $branch"
       # stash dirty files
-      git stash --include-untracked
+      git stash push -m "${SCRIPT_NAME}-${VERSION}-${branch}-$(date +'%Y-%m-%d %H:%M:%S')" --include-untracked
     fi
     # Check if submodules are dirty
     if ! git diff --submodule --quiet; then
