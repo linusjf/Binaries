@@ -6,10 +6,12 @@
 #
 # @author Linus Fernandes (linusfernandes@gmail.com)
 # @copyright Copyright (c) Linus Fernandes
+# @version 1.0.1
 
 # shellcheck disable=SC2155,SC1090,SC1091,SC2015
 set -euo pipefail
 shopt -s inherit_errexit
+
 # --- Constants ---
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly EXIT_SUCCESS=0
@@ -18,14 +20,18 @@ readonly EXIT_USAGE=2
 readonly REQUIRED_UTILS=("git")
 readonly VERSION="1.0.1"
 
-readonly COLOR_RED="\033[0;31m"
-readonly COLOR_GREEN="\033[0;32m"
-readonly COLOR_YELLOW="\033[0;33m"
-readonly COLOR_NC="\033[0m"
-
-# --- Configuration ---
-verbose=false
-debug_mode=false
+# --- Color Constants ---
+if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]] && [[ "${TERM:-}" != "dumb" ]]; then
+  readonly COLOR_RED="\033[0;31m"
+  readonly COLOR_GREEN="\033[0;32m"
+  readonly COLOR_YELLOW="\033[0;33m"
+  readonly COLOR_NC="\033[0m"
+else
+  readonly COLOR_RED=""
+  readonly COLOR_GREEN=""
+  readonly COLOR_YELLOW=""
+  readonly COLOR_NC=""
+fi
 
 # --- Functions ---
 
@@ -40,7 +46,7 @@ function print_error() {
 # @arg $1 string Info message
 # @output Info message to STDOUT if verbose enabled
 function print_info() {
-  [[ "${verbose}" == true ]] && printf "${COLOR_GREEN}Info: %s${COLOR_NC}\n" "$1" || true
+  [[ "${verbose:-false}" == true ]] && printf "${COLOR_GREEN}Info: %s${COLOR_NC}\n" "$1" || true
 }
 
 # @description Print warning message to STDERR
@@ -50,11 +56,18 @@ function print_warning() {
   printf "${COLOR_YELLOW}Warning: %s${COLOR_NC}\n" "$1" >&2
 }
 
+# @description Display script version
+# @output Version number to STDOUT
+function version() {
+  printf "%s\n" "${VERSION}"
+}
+
 # @description Display usage information
 # @output Usage information to STDERR
 function usage() {
   cat << EOF >&2
 ${SCRIPT_NAME} - Update Git submodules and parent repository
+Version: ${VERSION}
 
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
@@ -62,6 +75,7 @@ Options:
   -h, --help       Display this help
   -v, --verbose    Enable verbose output
   --debug          Enable debug mode
+  --version        Display version information
 
 Examples:
   # Basic usage
@@ -76,35 +90,37 @@ EOF
   exit ${EXIT_USAGE}
 }
 
-function version() {
-  printf "%s\n" "$VERSION"
-}
-
 # @description Clean up resources on exit
 # @arg $1 integer Exit code
+# @globals
+#   root_dir
+#   last_command
+#   debug_mode
 function cleanup() {
-  local -r ret="$1"
-  [[ "${debug_mode}" == true ]] && set +x
+  local -r exit_code="$1"
+  [[ "${debug_mode:-false}" == true ]] && set +x
 
   if [[ -n "${root_dir:-}" && "$(pwd)" != "${root_dir}" ]]; then
     cd "${root_dir}" || print_error "Failed to return to ${root_dir}"
   fi
 
-  if [[ ${ret} -ne ${EXIT_SUCCESS} ]]; then
-    print_error "Script failed with exit code ${ret}"
+  if [[ ${exit_code} -ne ${EXIT_SUCCESS} ]]; then
+    print_error "Script failed with exit code ${exit_code}"
     [[ -n "${last_command:-}" ]] && print_error "Last command: ${last_command}"
   fi
 
-  exit "${ret}"
+  exit "${exit_code}"
 }
 
 # @description Execute command with error handling
 # @arg $@ string Command to execute
-# @return Exit code of command
+# @globals last_command
+# @output Command output if verbose or debug enabled
+# @returns Exit code of command
 function run_command() {
   last_command="$*"
   print_info "Running: ${last_command}"
-  if [[ "${verbose}" == true || "${debug_mode}" == true ]]; then
+  if [[ "${verbose:-false}" == true || "${debug_mode:-false}" == true ]]; then
     "$@"
   else
     "$@" > /dev/null 2>&1
@@ -116,6 +132,8 @@ function run_command() {
 
 # @description Parse command line arguments
 # @arg $@ array Command line arguments
+# @globals verbose debug_mode
+# @sets verbose debug_mode
 function parse_arguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -138,25 +156,29 @@ function parse_arguments() {
   done
 }
 
+# @description Get current git branch
+# @output Current branch name
+# @returns Exit code of git command
+function get_current_branch() {
+  git branch --show-current
+}
+
 # @description Update all git submodules
 # @arg $1 boolean Whether to merge changes
-# @return Exit code of git submodule command
+# @returns Exit code of git submodule command
 function update_submodules() {
-  local -r merge="$1"
-  if "${merge}"; then
+  local -r merge_changes="$1"
+  if [[ "${merge_changes}" == true ]]; then
     run_command git submodule update --remote --merge
   else
     run_command git submodule update --remote --checkout --force
   fi
 }
 
-function get_current_branch() {
-  git branch --show-current
-}
-
 # @description Main function
 # @arg $@ array Command line arguments
-# @return Exit code
+# @globals initial_branch branches root_dir
+# @returns Exit code
 function main() {
   trap 'cleanup $?' EXIT
   parse_arguments "$@"
@@ -170,46 +192,49 @@ function main() {
   done
 
   # Get repository root
-  local root_dir
   if ! root_dir="$(git rev-parse --show-toplevel)"; then
     print_error "Not in a Git repository"
     exit ${EXIT_FAILURE}
   fi
   cd "${root_dir}" || exit ${EXIT_FAILURE}
 
+  local initial_branch
   initial_branch="$(get_current_branch)"
 
+  local -a branches
   readarray -t branches < <(git for-each-ref --format='%(refname:short)' refs/heads)
 
   for branch in "${branches[@]}"; do
-    print_info "Processing branch: $branch"
-    git checkout "$branch" &> /dev/null
+    print_info "Processing branch: ${branch}"
+    run_command git checkout "${branch}"
+
     # Update submodules
     update_submodules false || exit ${EXIT_FAILURE}
 
-    # check if branch dirty
+    # Check if branch has changes
     if ! git diff --quiet; then
-      # check if only branch is dirty
+      # Check if only branch is dirty (not submodules)
       if ! git diff --quiet --ignore-submodules; then
-        stash_name="${SCRIPT_NAME}-${VERSION}-${branch}-$(date +'%Y-%m-%d %H:%M:%S')"
+        local stash_name="${SCRIPT_NAME}-${VERSION}-${branch}-$(date +'%Y-%m-%dT%H:%M:%S%z')"
         print_warning "Stashing dirty files for branch: ${branch} as ${stash_name}..."
-        # stash dirty files
-        git stash push -m "$stash_name" --include-untracked
-        print_warning "Use command 'git stash apply ${stash_name}' to restore your changes."
+        run_command git stash push -m "${stash_name}" --include-untracked
+        print_warning "Use command 'git stash apply stash ${stash_name}' to restore your changes."
       fi
+
       # Check if submodules are dirty
       if ! git diff --submodule --quiet; then
         run_command git add .
-        run_command git commit -m "feat: Update submodules $(date +'%Y-%m-%d %H:%M:%S')"
+        run_command git commit -m "feat: Update submodules $(date +'%Y-%m-%dT%H:%M:%S%z')"
         run_command git push origin "${branch}"
       fi
     fi
-    # merge submodules
+
+    # Merge submodules
     update_submodules true
   done
 
   print_info "Switching back to ${initial_branch}"
-  git switch "$initial_branch" &> /dev/null
+  run_command git switch "${initial_branch}"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
