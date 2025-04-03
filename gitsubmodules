@@ -211,7 +211,7 @@ function main() {
   run_command git switch "${initial_branch}"
 
   for main_br in "main" "master"; do
-    if run_command git submodule foreach --recursive "git checkout ${main_br} && git pull"; then
+    if run_command git submodule foreach --recursive "git checkout ${main_br} && git pull" &> /dev/null; then
       break
     fi
   done
