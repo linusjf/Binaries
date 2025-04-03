@@ -174,7 +174,7 @@ function main() {
 
   for branch in "${branches[@]}"; do
     print_info "Processing branch: $branch"
-    git checkout "$branch"
+    git checkout "$branch" &> /dev/null
     # Update submodules
     update_submodules false || exit ${EXIT_FAILURE}
 
@@ -195,7 +195,7 @@ function main() {
   done
 
   print_info "Switching back to ${initial_branch}"
-  git switch "$initial_branch"
+  git switch "$initial_branch" &> /dev/null
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
