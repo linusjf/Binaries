@@ -65,6 +65,7 @@ function version() {
 # @description Display usage information
 # @output Usage information to STDERR
 function usage() {
+  local exitcode="$1"
   cat << EOF >&2
 ${SCRIPT_NAME} - Update Git submodules and parent repository
 Version: ${VERSION}
@@ -87,7 +88,7 @@ Examples:
   # Debug mode
   ${SCRIPT_NAME} --debug
 EOF
-  exit ${EXIT_USAGE}
+  exit "${exitcode}"
 }
 
 # @description Clean up resources on exit
@@ -137,7 +138,7 @@ function run_command() {
 function parse_arguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -h | --help) usage ;;
+      -h | --help) usage "$EXIT_SUCCESS" ;;
       -v | --verbose) verbose=true ;;
       --debug)
         debug_mode=true
@@ -149,7 +150,7 @@ function parse_arguments() {
         ;;
       *)
         print_error "Invalid argument: $1"
-        usage
+        usage "$EXIT_USAGE"
         ;;
     esac
     shift
