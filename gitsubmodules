@@ -16,7 +16,6 @@ readonly EXIT_SUCCESS=0
 readonly EXIT_FAILURE=1
 readonly EXIT_USAGE=2
 readonly REQUIRED_UTILS=("git")
-readonly MAIN_BRANCH_NAMES=("main" "master")
 
 readonly COLOR_RED="\033[0;31m"
 readonly COLOR_GREEN="\033[0;32m"
@@ -130,48 +129,6 @@ function parse_arguments() {
   done
 }
 
-# @description Get main branch name
-# @stdout Main branch name
-# @return 0 if successful, 1 otherwise
-function get_main_branch() {
-  local remote_head_ref
-  remote_head_ref="$(git symbolic-ref refs/remotes/origin/HEAD 2> /dev/null || echo "")"
-
-  for name in "${MAIN_BRANCH_NAMES[@]}"; do
-    if [[ "${remote_head_ref##*/}" == "${name}" ]]; then
-      echo "${name}"
-      return ${EXIT_SUCCESS}
-    fi
-  done
-
-  for name in "${MAIN_BRANCH_NAMES[@]}"; do
-    if git show-ref --verify --quiet "refs/heads/${name}"; then
-      echo "${name}"
-      return ${EXIT_SUCCESS}
-    fi
-  done
-
-  local branch_count
-  branch_count="$(git branch --list | wc -l | tr -d ' ')"
-  if [[ "${branch_count}" -eq 1 ]]; then
-    local single_branch
-    single_branch="$(git branch --show-current)"
-    print_info "Only one branch found (${single_branch}), using as main branch"
-    echo "${single_branch}"
-    return ${EXIT_SUCCESS}
-  fi
-
-  print_error "Could not determine main branch"
-  return ${EXIT_FAILURE}
-}
-
-# @description Check if branch exists
-# @arg $1 string Branch name
-# @return 0 if branch exists, 1 otherwise
-function branch_exists() {
-  git rev-parse --verify --quiet "refs/heads/$1" > /dev/null
-}
-
 # @description Update all git submodules
 # @arg $1 boolean Whether to merge changes
 # @return Exit code of git submodule command
@@ -216,14 +173,14 @@ function main() {
   readarray -t branches < <(git for-each-ref --format='%(refname:short)' refs/heads)
 
   for branch in "${branches[@]}"; do
-    echo "Processing branch: $branch"
+    print_info "Processing branch: $branch"
     git checkout "$branch"
     # Update submodules
     update_submodules false || exit ${EXIT_FAILURE}
 
     # check if branch is dirty
     if ! git diff --quiet --ignore-submodules; then
-      echo "Attempting to stash dirty files for branch (if any): $branch"
+      print_warning "Stash dirty files for branch: $branch"
       # stash dirty files
       git stash --include-untracked
     fi
@@ -237,6 +194,7 @@ function main() {
     update_submodules true
   done
 
+  print_info "Switching back to ${initial_branch}"
   git switch "$initial_branch"
 }
 
