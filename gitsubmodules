@@ -18,6 +18,7 @@ readonly EXIT_FAILURE=1
 readonly EXIT_USAGE=2
 readonly REQUIRED_UTILS=("git")
 readonly VERSION="1.0.1"
+readonly MAIN_BRANCHES=("main" "master")
 
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 
@@ -210,8 +211,8 @@ function main() {
   print_info "Switching back to ${initial_branch}"
   run_command git switch "${initial_branch}"
 
-  for main_br in "main" "master"; do
-    if run_command git submodule foreach --recursive "git checkout ${main_br} && git pull" &> /dev/null; then
+  for main_br in "${MAIN_BRANCHES[@]}"; do
+    if run_command git submodule foreach --recursive "git checkout ${main_br} && git pull" 2> /dev/null; then
       break
     fi
   done
