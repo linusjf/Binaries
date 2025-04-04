@@ -36,7 +36,7 @@ function usage() {
     err "Usage: ${SCRIPT_NAME} [OPTION] SEARCH_STRING"
     err "Try '${SCRIPT_NAME} --help' for more information."
   fi
-  exit $exit_code
+  exit "$exit_code"
 }
 
 function main() {
@@ -53,11 +53,11 @@ function parse_arguments() {
         debug=true
         shift
         ;;
-      -v|--verbose)
+      -v | --verbose)
         verbose=true
         shift
         ;;
-      -h|--help)
+      -h | --help)
         usage 0
         ;;
       --version)
@@ -91,7 +91,7 @@ function setup_environment() {
   fi
 
   local script_dir
-  if command -v realpath >/dev/null 2>&1; then
+  if command -v realpath > /dev/null 2>&1; then
     script_dir=$(dirname "$(realpath "$0")")
   else
     script_dir=$(cd -- "$(dirname -- "$0")" &> /dev/null && pwd -P)
