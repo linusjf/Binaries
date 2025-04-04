@@ -4,7 +4,7 @@
 # @file        : gitpush
 # @created     : Thursday May 02, 2019 21:07:57 IST
 # @copyright   : Copyright (c) Linus Fernandes
-# @description : Sync and push Git branches
+# @description : Sync and push Git branches using merge strategy
 ######################################################################
 # shellcheck disable=SC1090,SC1091,SC2317
 set -euo pipefail
@@ -43,7 +43,7 @@ mainBranch="main"
 
 trap 'ret=$?; message $ret' EXIT
 
-git pull --rebase
+git pull
 
 if ! git show-ref --quiet refs/heads/development; then
   printf "Local branch development does not exist. Creating it ...\n"
@@ -53,14 +53,12 @@ fi
 git push origin development
 
 git switch "$mainBranch"
-git submodule update --remote
-git rebase development
-git pull --rebase
+git merge development
+git pull
 git push origin "$mainBranch"
 
 git switch development
-git submodule update --remote
-git rebase "$mainBranch"
+git merge "$mainBranch"
 git push origin development
 
 exit 0
