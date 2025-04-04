@@ -5,7 +5,7 @@ set -euo pipefail
 shopt -s inherit_errexit
 
 readonly SCRIPT_NAME=$(basename "$0")
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly EXIT_SUCCESS=0
 readonly EXIT_FAILURE=1
 readonly EXIT_USAGE=2
@@ -18,12 +18,8 @@ debug=false # Flag for debug mode
 num_words=${DEFAULT_NUM_WORDS}
 stop_words_file=${DEFAULT_STOP_WORDS_FILE}
 
-#
-#
-#
-function print_error() {
-  printf "\033[0;31mError: %s\033[0m\n" "$1" >&2
-}
+# Source color utilities
+source "${SCRIPT_DIR}/color.sh"
 
 #
 #
@@ -84,11 +80,6 @@ function parse_arguments() {
         shift
         ;;
     esac
-    # This check prevents infinite loops if an unexpected argument is somehow
-    # not handled by the cases above or if shift is missed.
-    # if [[ $# -gt 0 && "$1" == "${1-}" ]]; then # Check if $1 exists before shifting
-    #    shift # Shift is handled within the case statements now
-    # fi
   done
 
   # Assign positional arguments
@@ -117,7 +108,7 @@ function download_stopwords_if_missing() {
   local url="$2"
 
   if [[ ! -f "$file_path" ]]; then
-    echo "Info: Stopwords file '${file_path}' not found. Downloading from ${url}..." >&2
+    print_info "Stopwords file '${file_path}' not found. Downloading from ${url}..."
     # Use temporary file for download to avoid partial file on error
     local temp_file
     temp_file=$(mktemp) || {
@@ -148,7 +139,7 @@ function download_stopwords_if_missing() {
     fi
     # Remove trap for this specific temp file as it's successfully moved
     trap - EXIT INT TERM
-    echo "Info: Downloaded and sorted stopwords to '${file_path}'." >&2
+    print_info "Downloaded and sorted stopwords to '${file_path}'."
   fi
   return 0
 }
@@ -199,9 +190,6 @@ function main() {
 
   # Check status of each command in the pipe (simplified check for non-zero)
   for status in "${pipe_status[@]}"; do
-    # Ignore grep exit code 1 (no matches found), which is acceptable for the final grep
-    # The first grep should ideally find something, but might not if input is empty/weird
-    # The final grep (stopwords removal) might legitimately find no matches to remove
     if [[ $status -ne 0 && $status -ne 1 ]]; then
       print_error "Pipeline command failed with exit code ${status}."
       exit ${EXIT_FAILURE}

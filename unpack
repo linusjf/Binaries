@@ -7,6 +7,7 @@ shopt -s inherit_errexit
 
 # --- Constants ---
 readonly SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly EXIT_SUCCESS=0
 readonly EXIT_FAILURE=1
 readonly REQUIRED_UTILS=(
@@ -16,6 +17,9 @@ readonly REQUIRED_UTILS=(
 # --- Global Variables ---
 verbose=false
 debug=false
+
+# Source color utilities
+source "${SCRIPT_DIR}/color.sh"
 
 # --- Functions ---
 
@@ -45,24 +49,6 @@ Examples:
   ${SCRIPT_NAME} --verbose my_archive.7z    # Extract with verbose output
 EOF
   exit ${EXIT_FAILURE}
-}
-
-# Function: print_error
-# Description: Prints an error message in red to STDERR.
-# Arguments: Error message string.
-# Outputs: Error message to STDERR.
-function print_error() {
-  printf "\033[1;31mError: %s\033[0m\n" "$1" >&2
-}
-
-# Function: print_info
-# Description: Prints an informational message if verbose mode is enabled.
-# Arguments: Info message string.
-# Outputs: Info message to STDOUT if verbose is true.
-function print_info() {
-  if ${verbose}; then
-    printf "\033[1;36m%s\033[0m\n" "$1"
-  fi
 }
 
 # Function: extract_file
@@ -164,9 +150,7 @@ function main() {
   fi
 
   # Source required utilities
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  source "${script_dir}/require.sh"
+  source "${SCRIPT_DIR}/require.sh"
   require_or_exit "${REQUIRED_UTILS[@]}"
 
   # Process each file
