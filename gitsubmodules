@@ -25,8 +25,9 @@ SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 if [[ -e "${SCRIPT_DIR}/internet.sh" ]]; then
   source "${SCRIPT_DIR}/internet.sh"
 fi
-# Source color functions
+# Source utility functions
 source "${SCRIPT_DIR}/color.sh"
+source "${SCRIPT_DIR}/git.sh"
 
 # --- Functions ---
 
@@ -131,13 +132,6 @@ function parse_arguments() {
   done
 }
 
-# @description Get current git branch
-# @output Current branch name
-# @returns Exit code of git command
-function get_current_branch() {
-  git branch --show-current
-}
-
 # @description Update all git submodules
 # @arg $1 boolean Whether to merge changes
 # @returns Exit code of git submodule command
@@ -167,8 +161,7 @@ function main() {
   done
 
   # Get repository root
-  if ! root_dir="$(git rev-parse --show-toplevel)"; then
-    print_error "Not in a Git repository"
+  if ! root_dir="$(git_root)"; then
     exit ${EXIT_FAILURE}
   fi
   cd "${root_dir}" || exit ${EXIT_FAILURE}
@@ -211,21 +204,8 @@ function main() {
   print_info "Switching back to ${initial_branch}"
   run_command git switch "${initial_branch}"
 
-  # This section updates all submodules to their main branches and pulls latest changes
-  # It tries each branch name in MAIN_BRANCHES array until one succeeds
-  # The git submodule foreach command:
-  # 1. Recursively processes each submodule
-  # 2. For each submodule:
-  #    - Checks out the main branch (trying 'main' first, then 'master')
-  #    - Pulls latest changes from remote
-  # 3. Silences stderr output (2> /dev/null) to avoid error spam if branch doesn't exist
-  # This is because we expect main branches to be named either main or master as way of convention.
-  # What this section of the code does is fix the problem where the checkout leads to a detached head for each updated submodule
-  # Checking into the main branch and pulling all updates since mitigates this problem.
-  # This also resolves the issue in the parent repo where it shows the submodules in a dirty state since the heads are detached.
   for main_br in "${MAIN_BRANCHES[@]}"; do
     if run_command git submodule foreach --recursive "git checkout ${main_br} && git pull" 2> /dev/null; then
-      # Break out of loop if command succeeds for any branch name
       break
     fi
   done
