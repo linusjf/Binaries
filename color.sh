@@ -8,28 +8,28 @@
 
 # --- Color Constants ---
 if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]] && [[ "${TERM:-}" != "dumb" ]]; then
-  readonly COLOR_RED="\033[0;31m"
-  readonly COLOR_GREEN="\033[0;32m"
-  readonly COLOR_YELLOW="\033[0;33m"
-  readonly COLOR_BLUE="\033[0;34m"
-  readonly COLOR_MAGENTA="\033[0;35m"
-  readonly COLOR_CYAN="\033[0;36m"
-  readonly COLOR_NC="\033[0m" # No Color
+  readonly COLOR_RED='\x1b[0;31m'
+  readonly COLOR_GREEN='\033[0;32m'
+  readonly COLOR_YELLOW='\033[0;33m'
+  readonly COLOR_BLUE='\033[0;34m'
+  readonly COLOR_MAGENTA='\033[0;35m'
+  readonly COLOR_CYAN='\033[0;36m'
+  readonly COLOR_NC='\033[0m' # No Color
 else
-  readonly COLOR_RED=""
-  readonly COLOR_GREEN=""
-  readonly COLOR_YELLOW=""
-  readonly COLOR_BLUE=""
-  readonly COLOR_MAGENTA=""
-  readonly COLOR_CYAN=""
-  readonly COLOR_NC=""
+  readonly COLOR_RED=''
+  readonly COLOR_GREEN=''
+  readonly COLOR_YELLOW=''
+  readonly COLOR_BLUE=''
+  readonly COLOR_MAGENTA=''
+  readonly COLOR_CYAN=''
+  readonly COLOR_NC=''
 fi
 
 # --- Utility Functions ---
-function out() { printf %s\\n "$*"; }
-function err() { >&2 printf %s\\n "$*"; }
+function out() { printf "%b\n" "$*"; }
+function err() { >&2 printf "%b\n" "$*"; }
 function die() {
-  >&2 printf %s\\n "$*"
+  >&2 printf "%b\n" "$*"
   exit 1
 }
 
@@ -44,7 +44,7 @@ function die() {
 #   Writes colored error message to STDERR
 #######################################
 function print_error() {
-  err "${COLOR_RED}Error: $1${COLOR_NC}"
+  err "${COLOR_RED}Error: ${1}${COLOR_NC}"
 }
 
 #######################################
@@ -59,7 +59,7 @@ function print_error() {
 #   Writes colored info message to STDOUT if verbose enabled
 #######################################
 function print_info() {
-  [[ "${verbose:-false}" == true ]] && out "${COLOR_GREEN}Info: $1${COLOR_NC}" || true
+  out "${COLOR_GREEN}Info: $1${COLOR_NC}" || true
 }
 
 #######################################
@@ -88,7 +88,7 @@ function print_warning() {
 #   Writes colored debug message to STDOUT if debug enabled
 #######################################
 function print_debug() {
-  [[ "${debug:-false}" == true ]] && out "${COLOR_BLUE}Debug: $1${COLOR_NC}" || true
+  [[ $- == *x* ]] && out "${COLOR_BLUE}Debug: $1${COLOR_NC}" || true
 }
 
 #######################################
@@ -106,3 +106,21 @@ function print_success() {
 }
 
 export -f out err die print_error print_info print_warning print_debug print_success
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  debug=true
+  verbose=true
+  printf "${COLOR_RED}%s${COLOR_NC}\n" "red"
+  printf "${COLOR_GREEN}%s${COLOR_NC}\n" "green"
+  printf "${COLOR_YELLOW}%s${COLOR_NC}\n" "yellow"
+  printf "${COLOR_BLUE}%s${COLOR_NC}\n" "blue"
+  printf "${COLOR_MAGENTA}%s${COLOR_NC}\n" "magenta"
+  printf "${COLOR_CYAN}%s${COLOR_NC}\n" "cyan"
+  print_success "Success"
+  print_debug "Debug"
+  print_warning "Warning"
+  print_info "Info"
+  err "Error"
+  out "Print out"
+  die "Ending ..."
+fi
