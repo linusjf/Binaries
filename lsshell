@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155,SC1090,SC1091 # Dynamically determined source path
+# List shell scripts in the current directory
+# shellcheck disable=SC2155,SC1090,SC1091
 
 set -euo pipefail
 shopt -s inherit_errexit
@@ -11,34 +12,21 @@ readonly EXIT_FAILURE=1
 readonly EXIT_USAGE=2
 readonly REQUIRED_UTILS=("shfmt" "awk")
 
-debug=false # Flag for debug mode
+source "${SCRIPT_DIR}/color.sh"
 
-#
-#
-#
-function print_error() {
-  printf "\033[0;31mError: %s\033[0m\n" "$1" >&2
-}
+debug=false
+verbose=false
 
-#
-#
-#
 function usage() {
   cat << EOF >&2
-${SCRIPT_NAME} - List shell scripts in the current directory.
+${SCRIPT_NAME} - List shell scripts in current directory.
 
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
-Uses 'shfmt --find .' to locate shell scripts recursively from the current
-directory and then uses 'awk' to filter and print only those scripts
-located directly in the current directory.
-
 Options:
-  -h, --help       Display this help message and exit.
-      --debug      Enable debug mode (set -x).
-
-Requires:
-  - ${REQUIRED_UTILS[*]} command line tools.
+  -h, --help       Display this help message and exit
+  -v, --verbose    Enable verbose output
+      --debug      Enable debug mode
 
 Examples:
   ${SCRIPT_NAME}
@@ -47,77 +35,38 @@ EOF
   exit ${EXIT_USAGE}
 }
 
-#
-#
-#
 function parse_arguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -h | --help)
-        usage
-        ;;
-      --debug)
-        debug=true
-        shift
-        ;;
-      -*)
-        print_error "Invalid option: $1"
-        usage
-        ;;
-      *)
-        # No positional arguments expected
-        print_error "Unknown argument: $1"
-        usage
-        ;;
+      -h|--help) usage ;;
+      -v|--verbose) verbose=true; shift ;;
+      --debug) debug=true; shift ;;
+      -*) print_error "Invalid option: $1"; usage ;;
+      *) print_error "Unknown argument: $1"; usage ;;
     esac
-    # This check prevents infinite loops if an unexpected argument is somehow
-    # not handled by the cases above or if shift is missed.
-    if [[ $# -gt 0 && "$1" == "${1-}" ]]; then # Check if $1 exists before shifting
-      shift
-    fi
+    [[ $# -gt 0 ]] && shift
   done
 }
 
-#
-#
-#
-function main() {
-  parse_arguments "$@"
-
-  # Activate debug mode if requested
-  if [[ "${debug}" == true ]]; then
-    set -x
-  fi
-
-  # Source require.sh and check dependencies
+function require_dependencies() {
   source "${SCRIPT_DIR}/require.sh"
   require_or_exit "${REQUIRED_UTILS[@]}"
+}
 
-  # Execute the command pipeline
-  # Use a temporary variable to check the pipeline status correctly
-  local output
-  output=$(shfmt --find . | awk -F'/' 'NF==1 {print $NF}')
-  local pipe_status=("${PIPESTATUS[@]}") # Capture PIPESTATUS immediately
+function main() {
+  parse_arguments "$@"
+  [[ "${debug}" == true ]] && set -x
 
-  # Check status of both commands in the pipe
-  if [[ ${pipe_status[0]} -ne 0 ]]; then
-    print_error "'shfmt --find .' command failed."
-    exit ${EXIT_FAILURE}
-  elif [[ ${#pipe_status[@]} -gt 1 ]] && [[ ${pipe_status[1]} -ne 0 ]]; then
-    # awk failure is less likely here unless there's a syntax error in the awk script itself
-    print_error "'awk' command failed."
+  require_dependencies
+
+  if output=$(shfmt --find . | awk -F'/' 'NF==1 {print $NF}'); then
+    [[ -n "${output}" ]] && echo "${output}"
+  else
+    print_error "Failed to list shell scripts"
     exit ${EXIT_FAILURE}
   fi
-
-  # Print the collected output if successful
-  if [[ -n "${output}" ]]; then
-    echo "${output}"
-  fi
-
-  exit ${EXIT_SUCCESS}
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  # Wrap main execution in subshell to isolate 'set -x' if debug is enabled
-  (main "$@")
+  main "$@"
 fi
