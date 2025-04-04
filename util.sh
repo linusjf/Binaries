@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-
+######################################################################
+######################################################################
 # @file util.sh
 # @brief General utility functions for bash scripting
 # @description Contains common utility functions for output, debugging, and system operations.
@@ -8,18 +9,18 @@
 # Output functions
 #######################################
 
-out() { printf %s\\n "$*"; }
+out() { printf "%b\n" "$*"; }
 export -f out
-err() { >&2 printf %s\\n "$*"; }
+err() { >&2 printf "%b\n" "$*"; }
 export -f err
 die() {
-  >&2 printf %s\\n "$*"
+  >&2 printf "%b\n" "$*"
   exit 1
 }
 export -f die
-big() { printf \\n###\\n#\\n#\ %s\\n#\\n###\\n\\n "$*"; }
+big() { printf "\n###\n#\n#\ %b\n#\n###\n\n" "$*"; }
 export -f big
-log() { printf '%s %s %s\n' "$(now)" $$ "$*"; }
+log() { printf "%b %b %b\n" "$(now)" $$ "$*"; }
 export -f log
 
 #######################################
@@ -60,27 +61,12 @@ export -f assert_equal
 
 temp_home() { out "$(mktemp -d -t "${1:-$(zid)}")"; }
 export -f temp_home
-temp_dir() { out "$(temp_home "$(basename "$0")")"; }
+temp_dir() { out "$(temp_home "$(program)")"; }
 export -f temp_dir
 
 #######################################
 # Program information
 #######################################
 
-program() {
-  printf "%s\n" "$(basename "$0")"
-}
+program() { printf "%s\n" "$(basename "$0")"; }
 export -f program
-
-#######################################
-# PostgreSQL utility functions
-#######################################
-
-psql_user_names() { psql -tAc "SELECT usename FROM pg_catalog.pg_user;"; }
-export -f psql_user_names
-psql_user_name_exist() { [ "$(psql -tAc "SELECT 1 FROM pg_catalog.pg_user WHERE usename='$1'")" = '1' ]; }
-export -f psql_user_name_exist
-psql_database_names() { psql -tAc "SELECT datname FROM pg_database;"; }
-export -f psql_database_names
-psql_database_name_exist() { [ "$(psql -tAc "SELECT 1 FROM pg_database WHERE datname='$1'")" = '1' ]; }
-export -f psql_database_name_exist
