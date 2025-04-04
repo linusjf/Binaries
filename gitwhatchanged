@@ -17,7 +17,7 @@ verbose=false
 debug=false
 
 # --- Source Utilities ---
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=require.sh
 source "${script_dir}/require.sh"
 # shellcheck source=color.sh
