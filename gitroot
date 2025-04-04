@@ -66,7 +66,7 @@ function main() {
 }
 
 # Source required utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "${SCRIPT_DIR}/require.sh"
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
