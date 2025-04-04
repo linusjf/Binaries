@@ -12,6 +12,15 @@ readonly EXIT_FAILURE=1
 
 verbose=false
 dry_run=false
+debug=false
+
+# Source color utilities
+if command -v realpath >/dev/null 2>&1; then
+  SCRIPT_DIR=$(dirname "$(realpath "$0")")
+else
+  SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" &> /dev/null && pwd -P)
+fi
+source "${SCRIPT_DIR}/color.sh"
 
 function detect_storage_base() {
   if [[ -d /data/data/com.termux/files/usr ]]; then
@@ -45,12 +54,13 @@ EOF
   exit ${EXIT_FAILURE}
 }
 
-function print_error() {
-  printf "\033[1;31m%s\033[0m\n" "$1" >&2
-}
-
-function print_info() {
-  printf "\033[1;36m%s\033[0m\n" "$1"
+function require() {
+  for cmd in "$@"; do
+    if ! command -v "${cmd}" >/dev/null 2>&1; then
+      print_error "Required command not found: ${cmd}"
+      exit ${EXIT_FAILURE}
+    fi
+  done
 }
 
 function main() {
@@ -71,6 +81,7 @@ function main() {
         shift
         ;;
       --debug)
+        debug=true
         set -x
         shift
         ;;
@@ -120,9 +131,6 @@ function main() {
 
   return ${EXIT_SUCCESS}
 }
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/require.sh"
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   main "$@"
