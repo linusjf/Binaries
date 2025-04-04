@@ -35,7 +35,7 @@ function usage() {
     err "Usage: ${SCRIPT_NAME} [OPTION]"
     err "Try '${SCRIPT_NAME} --help' for more information."
   fi
-  exit $exit_code
+  exit "$exit_code"
 }
 
 function main() {
@@ -47,7 +47,7 @@ function main() {
 function parse_arguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -v|--verbose)
+      -v | --verbose)
         verbose=true
         shift
         ;;
@@ -56,8 +56,11 @@ function parse_arguments() {
         set -x
         shift
         ;;
-      -h|--help) usage ;;
-      --version) version; exit $EXIT_SUCCESS ;;
+      -h | --help) usage ;;
+      --version)
+        version
+        exit $EXIT_SUCCESS
+        ;;
       -*)
         err "Unknown option: $1"
         usage $EXIT_FAILURE
@@ -71,7 +74,7 @@ function parse_arguments() {
 }
 
 function setup_environment() {
-  if command -v realpath >/dev/null 2>&1; then
+  if command -v realpath > /dev/null 2>&1; then
     SCRIPT_DIR=$(dirname "$(realpath "$0")")
   else
     SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" &> /dev/null && pwd -P)
@@ -109,7 +112,7 @@ function run_checks() {
     local last_exit_code=$?
     ((exit_code |= last_exit_code))
     ((file_count++))
-    
+
     if [[ $last_exit_code -ne 0 ]]; then
       print_warning "Issues found in $f"
     fi
