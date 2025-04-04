@@ -7,7 +7,6 @@ shopt -s inherit_errexit
 
 readonly SCRIPT_NAME=$(basename "$0")
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly EXIT_SUCCESS=0
 readonly EXIT_FAILURE=1
 readonly EXIT_USAGE=2
 readonly REQUIRED_UTILS=("fdfind") # Or 'fd' depending on the system
@@ -38,11 +37,23 @@ EOF
 function parse_arguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -h|--help) usage ;;
-      -v|--verbose) verbose=true; shift ;;
-      --debug) debug=true; shift ;;
-      -*) print_error "Invalid option: $1"; usage ;;
-      *) print_error "Unknown argument: $1"; usage ;;
+      -h | --help) usage ;;
+      -v | --verbose)
+        verbose=true
+        shift
+        ;;
+      --debug)
+        debug=true
+        shift
+        ;;
+      -*)
+        print_error "Invalid option: $1"
+        usage
+        ;;
+      *)
+        print_error "Unknown argument: $1"
+        usage
+        ;;
     esac
     [[ $# -gt 0 ]] && shift
   done
