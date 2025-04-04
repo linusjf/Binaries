@@ -4,7 +4,7 @@
 # @brief Provides color utilities for terminal output
 # @description Contains functions for colored output and constants for common colors.
 # Colors are automatically disabled when output is not a terminal or when NO_COLOR is set.
-
+# shellcheck disable=SC2034
 # --- Color Constants ---
 if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]] && [[ "${TERM:-}" != "dumb" ]]; then
   readonly COLOR_RED="\033[0;31m"
