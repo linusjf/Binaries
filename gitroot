@@ -28,10 +28,6 @@ EOF
   exit ${EXIT_FAILURE}
 }
 
-function print_error() {
-  printf "\033[1;31m%s\033[0m\n" "$1" >&2
-}
-
 function main() {
   local verbose=false
 
@@ -53,11 +49,14 @@ function main() {
     esac
   done
 
-  require git
+  # Source git utility functions
+  source "${SCRIPT_DIR}/git.sh"
+
+  require_git
+  is_git_repository || exit ${EXIT_FAILURE}
 
   local root
-  if ! root=$(git rev-parse --show-toplevel 2> /dev/null); then
-    print_error "Error: Not a Git repository"
+  if ! root=$(git_root); then
     exit ${EXIT_FAILURE}
   fi
 
