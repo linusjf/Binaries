@@ -6,7 +6,7 @@ set -euo pipefail
 shopt -s inherit_errexit
 
 readonly SCRIPT_NAME=$(basename "$0")
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly EXIT_FAILURE=1
 readonly EXIT_USAGE=2
 readonly REQUIRED_UTILS=("find")

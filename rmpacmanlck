@@ -8,7 +8,7 @@ set -euo pipefail
 shopt -s inherit_errexit
 
 # Source the require.sh file using the conventional method
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/require.sh"
 
 # Ensure `rm` command exists

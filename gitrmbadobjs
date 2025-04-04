@@ -65,7 +65,7 @@ setup_environment() {
   fi
 
   local script_dir
-  script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+  script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
   source "${script_dir}/require.sh"
   require git find
 }
