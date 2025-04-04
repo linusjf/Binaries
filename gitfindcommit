@@ -6,44 +6,71 @@
 set -euo pipefail
 shopt -s inherit_errexit
 
+readonly VERSION="1.0.0"
 readonly SCRIPT_NAME=$(basename "$0")
 readonly EXIT_FAILURE=1
 
 debug=false
+verbose=false
 
-usage() {
-  cat << EOF
-${SCRIPT_NAME} - Search git commit messages
-
-Usage: ${SCRIPT_NAME} [OPTION] SEARCH_STRING
-
-Options:
-  --debug    Enable debug output
-  -h, --help Display this help message
-
-Examples:
-  ${SCRIPT_NAME} "bug fix"      # Search for "bug fix" in commit messages
-  ${SCRIPT_NAME} --debug "fix"  # Search with debug output
-EOF
-  exit ${EXIT_FAILURE}
+function version() {
+  printf "%s\n" "$VERSION"
 }
 
-main() {
+function usage() {
+  local exit_code=${1:-0}
+  if [[ $exit_code -eq 0 ]]; then
+    out "Usage: ${SCRIPT_NAME} [OPTION] SEARCH_STRING"
+    out "Search git commit messages"
+    out ""
+    out "Options:"
+    out "  --debug       Enable debug output"
+    out "  -v, --verbose Enable verbose output"
+    out "  -h, --help    Display this help message"
+    out "  --version     Display version information"
+    out ""
+    out "Examples:"
+    out "  ${SCRIPT_NAME} \"bug fix\"      # Search for \"bug fix\" in commit messages"
+    out "  ${SCRIPT_NAME} --debug \"fix\"  # Search with debug output"
+  else
+    err "Usage: ${SCRIPT_NAME} [OPTION] SEARCH_STRING"
+    err "Try '${SCRIPT_NAME} --help' for more information."
+  fi
+  exit $exit_code
+}
+
+function main() {
   local search_string
   parse_arguments "$@"
   setup_environment
   search_commits "$search_string"
 }
 
-parse_arguments() {
+function parse_arguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --debug)
         debug=true
         shift
         ;;
-      -h | --help)
-        usage
+      -v|--verbose)
+        verbose=true
+        shift
+        ;;
+      -h|--help)
+        usage 0
+        ;;
+      --version)
+        version
+        exit 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        err "Unknown option: $1"
+        usage "$EXIT_FAILURE"
         ;;
       *)
         break
@@ -52,28 +79,36 @@ parse_arguments() {
   done
 
   if [[ $# -lt 1 ]]; then
-    printf "Error: search string not specified\n" >&2
-    usage
+    err "Error: search string not specified"
+    usage "$EXIT_FAILURE"
   fi
   search_string="${1}"
 }
 
-setup_environment() {
-  if "${debug}"; then
+function setup_environment() {
+  if "$debug"; then
     set -x
   fi
 
   local script_dir
-  script_dir=$(dirname "$(readlink -f "$0")")
+  if command -v realpath >/dev/null 2>&1; then
+    script_dir=$(dirname "$(realpath "$0")")
+  else
+    script_dir=$(cd -- "$(dirname -- "$0")" &> /dev/null && pwd -P)
+  fi
+
+  source "${script_dir}/color.sh"
   source "${script_dir}/require.sh"
   require git
 }
 
-search_commits() {
+function search_commits() {
+  print_info "Searching git commits for: $1"
   if ! git log --all --grep="$1"; then
-    printf "Error searching Git log\n" >&2
-    exit ${EXIT_FAILURE}
+    print_error "Failed to search Git log"
+    exit "$EXIT_FAILURE"
   fi
+  print_success "Search completed"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

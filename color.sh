@@ -5,6 +5,7 @@
 # @description Contains functions for colored output and constants for common colors.
 # Colors are automatically disabled when output is not a terminal or when NO_COLOR is set.
 # shellcheck disable=SC2034
+
 # --- Color Constants ---
 if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]] && [[ "${TERM:-}" != "dumb" ]]; then
   readonly COLOR_RED="\033[0;31m"
@@ -24,6 +25,14 @@ else
   readonly COLOR_NC=""
 fi
 
+# --- Utility Functions ---
+function out() { printf %s\\n "$*"; }
+function err() { >&2 printf %s\\n "$*"; }
+function die() {
+  >&2 printf %s\\n "$*"
+  exit 1
+}
+
 #######################################
 # Print error message to STDERR
 # Globals:
@@ -35,7 +44,7 @@ fi
 #   Writes colored error message to STDERR
 #######################################
 function print_error() {
-  printf "${COLOR_RED}Error: %s${COLOR_NC}\n" "$1" >&2
+  err "${COLOR_RED}Error: $1${COLOR_NC}"
 }
 
 #######################################
@@ -50,7 +59,7 @@ function print_error() {
 #   Writes colored info message to STDOUT if verbose enabled
 #######################################
 function print_info() {
-  [[ "${verbose:-false}" == true ]] && printf "${COLOR_GREEN}Info: %s${COLOR_NC}\n" "$1" || true
+  [[ "${verbose:-false}" == true ]] && out "${COLOR_GREEN}Info: $1${COLOR_NC}" || true
 }
 
 #######################################
@@ -64,7 +73,7 @@ function print_info() {
 #   Writes colored warning message to STDERR
 #######################################
 function print_warning() {
-  printf "${COLOR_YELLOW}Warning: %s${COLOR_NC}\n" "$1" >&2
+  err "${COLOR_YELLOW}Warning: $1${COLOR_NC}"
 }
 
 #######################################
@@ -79,7 +88,7 @@ function print_warning() {
 #   Writes colored debug message to STDOUT if debug enabled
 #######################################
 function print_debug() {
-  [[ "${debug:-false}" == true ]] && printf "${COLOR_BLUE}Debug: %s${COLOR_NC}\n" "$1" || true
+  [[ "${debug:-false}" == true ]] && out "${COLOR_BLUE}Debug: $1${COLOR_NC}" || true
 }
 
 #######################################
@@ -93,5 +102,7 @@ function print_debug() {
 #   Writes colored success message to STDOUT
 #######################################
 function print_success() {
-  printf "${COLOR_GREEN}Success: %s${COLOR_NC}\n" "$1"
+  out "${COLOR_GREEN}Success: $1${COLOR_NC}"
 }
+
+export -f out err die print_error print_info print_warning print_debug print_success
