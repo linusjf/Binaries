@@ -59,7 +59,7 @@ function print_error() {
 #   Writes colored info message to STDOUT if verbose enabled
 #######################################
 function print_info() {
-  out "${COLOR_GREEN}Info: $1${COLOR_NC}" || true
+  [[ "${verbose:=false}" == true ]] && out "${COLOR_GREEN}Info: $1${COLOR_NC}" || true
 }
 
 #######################################
