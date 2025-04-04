@@ -126,7 +126,7 @@ function main() {
   # Source required utilities
   # Using BASH_SOURCE[0] is more robust than readlink -f "$0"
   local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
   # shellcheck source=require.sh
   source "${script_dir}/require.sh"
   require_or_exit git
