@@ -191,6 +191,7 @@ function main() {
 
       # Check if submodules are dirty
       if ! git diff --submodule --quiet; then
+        run_command git pull
         run_command git add .
         run_command git commit -m "feat: Update submodules $(date +'%Y-%m-%dT%H:%M:%S%z')"
         run_command git push origin "${branch}"
