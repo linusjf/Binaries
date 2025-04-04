@@ -7,8 +7,7 @@ set -euo pipefail
 shopt -s inherit_errexit
 
 # --- Constants ---
-readonly SCRIPT_NAME
-SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_NAME=$(basename "$0")
 readonly EXIT_SUCCESS=0
 readonly EXIT_FAILURE=1
 
@@ -17,8 +16,16 @@ readonly EXIT_FAILURE=1
 verbose=false
 debug=false
 
+# --- Source Utilities ---
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=require.sh
+source "${script_dir}/require.sh"
+# shellcheck source=color.sh
+source "${script_dir}/color.sh"
+
 # --- Functions ---
 
+#######################################
 # Print usage information and exit.
 # Globals:
 #   SCRIPT_NAME
@@ -27,6 +34,7 @@ debug=false
 #   Writes usage information to STDERR.
 # Returns:
 #   Exits with failure status.
+#######################################
 function usage() {
   cat << EOF >&2
 ${SCRIPT_NAME} - View changes in a Git repository using 'git log --raw'.
@@ -51,31 +59,7 @@ EOF
   exit ${EXIT_FAILURE}
 }
 
-# Print an error message to STDERR.
-# Globals: None
-# Arguments:
-#   $1: The error message to print.
-# Outputs:
-#   Writes the error message in red to STDERR.
-# Returns: None
-function print_error() {
-  printf "\033[1;31mError: %s\033[0m\n" "$1" >&2
-}
-
-# Print an informational message to STDOUT if verbose mode is enabled.
-# Globals:
-#   verbose
-# Arguments:
-#   $1: The informational message to print.
-# Outputs:
-#   Writes the message in cyan to STDOUT if verbose is true.
-# Returns: None
-function print_info() {
-  if ${verbose}; then
-    printf "\033[1;36m%s\033[0m\n" "$1"
-  fi
-}
-
+#######################################
 # Main function to parse arguments and execute the git command.
 # Globals:
 #   verbose
@@ -88,6 +72,7 @@ function print_info() {
 # Returns:
 #   EXIT_SUCCESS (0) on successful execution.
 #   EXIT_FAILURE (1) on error (e.g., not a git repo, invalid option).
+#######################################
 function main() {
   local git_log_args=()
 
@@ -123,12 +108,6 @@ function main() {
     esac
   done
 
-  # Source required utilities
-  # Using BASH_SOURCE[0] is more robust than readlink -f "$0"
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  # shellcheck source=require.sh
-  source "${script_dir}/require.sh"
   require_or_exit git
 
   # Check if inside a Git repository
@@ -149,8 +128,6 @@ function main() {
 }
 
 # --- Script Execution ---
-
-# Ensure the script is executed directly, not sourced.
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   main "$@"
 fi
