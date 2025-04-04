@@ -26,6 +26,10 @@ source "${SCRIPT_DIR}/git.sh" || {
   echo "Failed to source git utilities" >&2
   exit 1
 }
+source "${SCRIPT_DIR}/require.sh" || {
+  echo "Failed to source require utilities" >&2
+  exit 1
+}
 
 #######################################
 # Print usage information
