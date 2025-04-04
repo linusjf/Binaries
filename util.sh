@@ -49,9 +49,9 @@ export -f cmd
 # Assertion functions
 #######################################
 
-assert_empty() { [ -z "$1" ] || err $FUNCNAME "$@"; }
+assert_empty() { [ -z "$1" ] || err "${FUNCNAME[0]}" "$@"; }
 export -f assert_empty
-assert_equal() { [ "$1" = "$2" ] || err $FUNCNAME "$@"; }
+assert_equal() { [ "$1" = "$2" ] || err "${FUNCNAME[0]}" "$@"; }
 export -f assert_equal
 
 #######################################
