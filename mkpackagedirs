@@ -40,7 +40,7 @@ function version() {
   printf "%s\n" "${VERSION}"
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "${SCRIPT_DIR}/color.sh"
 source "${SCRIPT_DIR}/require.sh"
 
