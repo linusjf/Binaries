@@ -13,7 +13,8 @@ SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/require.sh"
 
-require ssh-add ssh-agent ssh-keygen grep cut
+# Check for required commands - exit if missing
+require_or_exit ssh-add ssh-agent ssh-keygen grep cut find
 
 # Start ssh-agent and ensure it started successfully
 eval "$(ssh-agent -s)" || {
