@@ -1,114 +1,119 @@
 #!/usr/bin/env bash
 #
-# Script to delete broken symbolic links with interactive confirmation.
-# Provides options for dry-run mode, printing links, and debug output.
+# Remove broken symbolic links with interactive confirmation
+# Version: 1.0.0
 
-# shellcheck disable=SC2155,SC1090,SC1091
 set -euo pipefail
 shopt -s inherit_errexit
 
-usage() {
+readonly VERSION="1.0.0"
+
+# Source required utilities
+script_dir=$(dirname "$(readlink -f "$0")")
+source "${script_dir}/require.sh"
+
+function usage() {
   cat << EOF
-Usage: $0 [OPTION]
+Usage: ${0##*/} [OPTION]
 Remove broken symbolic links
 
 Options:
-  -d, --dry-run  Print links to be deleted instead of deleting
-  -h, --help     Display this help message
-  -p, --print    Print list of broken links
-  --debug        Enable debug output (shows executed commands)
+  -d, --dry-run    Print links to be deleted instead of deleting
+  -h, --help       Display this help message
+  -p, --print      Print list of broken links
+  --debug          Enable debug output (shows executed commands)
+  --version        Display version information
 EOF
-  exit 1
 }
 
-DRY_RUN=false
-PRINT=false
-DBG=false
-BROKEN_LINKS=()
+function version() {
+  echo "${VERSION}"
+}
 
-main() {
+function main() {
+  local dry_run=false
+  local print=false
+  local debug=false
+  local broken_links=()
+
   parse_arguments "$@"
   setup_debug_mode
   find_broken_links
   handle_links
 }
 
-parse_arguments() {
-  while [ $# -gt 0 ]; do
+function parse_arguments() {
+  while [[ $# -gt 0 ]]; do
     case $1 in
-      -d | --dry-run) DRY_RUN=true ;;
-      -p | --print) PRINT=true ;;
-      --debug) DBG=true ;;
-      -h | --help) usage ;;
-      *) usage ;;
+      -d | --dry-run) dry_run=true ;;
+      -p | --print) print=true ;;
+      --debug) debug=true ;;
+      -h | --help) usage; exit 0 ;;
+      --version) version; exit 0 ;;
+      *) usage; exit 1 ;;
     esac
     shift
   done
 }
 
-setup_debug_mode() {
-  if "$DBG"; then
+function setup_debug_mode() {
+  if [[ "${debug}" == true ]]; then
     set -x
   fi
 }
 
-find_broken_links() {
-  # shellcheck disable=SC2155
-  local script_dir=$(dirname "$(readlink -f "$0")")
-  source "$script_dir/require.sh"
+function find_broken_links() {
+  require_or_exit find mapfile rm
 
-  require mapfile find rm
-
-  mapfile -t BROKEN_LINKS < <(find . -xtype l -print)
+  mapfile -t broken_links < <(find . -xtype l -print)
 }
 
-handle_links() {
-  if [ ${#BROKEN_LINKS[@]} -eq 0 ]; then
+function handle_links() {
+  if [[ ${#broken_links[@]} -eq 0 ]]; then
     echo "No broken symbolic links found."
     exit 0
   fi
 
-  if "$PRINT"; then
-    printf "%s\n" "${BROKEN_LINKS[@]}"
+  if [[ "${print}" == true ]]; then
+    printf "%s\n" "${broken_links[@]}"
     exit 0
   fi
 
   process_links
 }
 
-process_links() {
+function process_links() {
   local all_links="no"
 
-  local response
-  for link in "${BROKEN_LINKS[@]}"; do
-    if [ "$all_links" = "yes" ]; then
-      process_link "$link"
+  for link in "${broken_links[@]}"; do
+    if [[ "${all_links}" == "yes" ]]; then
+      process_link "${link}"
       continue
     fi
 
-    read -rp "Delete $link? (yes/no/all/abort): " response
-    case "$response" in
-      y | yes) process_link "$link" ;;
+    read -rp "Delete ${link}? (yes/no/all/abort): " response
+    case "${response}" in
+      y | yes) process_link "${link}" ;;
       all)
         all_links="yes"
-        process_link "$link"
+        process_link "${link}"
         ;;
       abort)
         echo "Operation aborted."
         exit 1
         ;;
-      *) echo "Skipping $link" ;;
+      *) echo "Skipping ${link}" ;;
     esac
   done
 }
 
-process_link() {
-  local link=$1
-  if "$DRY_RUN"; then
-    echo "Would delete $link"
+function process_link() {
+  local link="$1"
+  if [[ "${dry_run}" == true ]]; then
+    echo "Would delete ${link}"
   else
-    rm -f "$link"
-    echo "Deleted $link"
+    rm -f "${link}"
+    echo "Deleted ${link}"
   fi
 }
 
