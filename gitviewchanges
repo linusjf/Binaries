@@ -7,8 +7,7 @@ set -euo pipefail
 shopt -s inherit_errexit
 
 # --- Constants ---
-readonly SCRIPT_NAME
-SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_NAME=$(basename "$0")
 readonly EXIT_SUCCESS=0
 readonly EXIT_FAILURE=1
 

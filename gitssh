@@ -15,26 +15,26 @@ source "$SCRIPT_DIR/require.sh"
 
 require ssh-add ssh-agent ssh-keygen grep cut
 
-SSH_KEY="$HOME/.ssh/id_rsa"
-
-# Check if the SSH key exists
-if [[ ! -f "$SSH_KEY" ]]; then
-  echo "Error: SSH key '$SSH_KEY' not found! Exiting..."
-  exit 1
-fi
-
 # Start ssh-agent and ensure it started successfully
 eval "$(ssh-agent -s)" || {
   echo "Error: Failed to start ssh-agent. Exiting..."
   exit 1
 }
 
-# Check if the key is already added
-if ! ssh-add -l | grep -q "$(ssh-keygen -lf "$SSH_KEY" | cut -d ' ' -f2)"; then
-  echo "Adding SSH key to agent..."
-  ssh-add "$SSH_KEY"
-else
-  echo "SSH key is already added."
-fi
+# Find all private keys in .ssh directory (id_rsa, id_ed25519, etc.)
+while IFS= read -r -d '' key; do
+  # Skip public key files (*.pub)
+  if [[ "$key" == *.pub ]]; then
+    continue
+  fi
+
+  # Check if the key is already added
+  if ! ssh-add -l | grep -q "$(ssh-keygen -lf "$key" | cut -d ' ' -f2)"; then
+    echo "Adding SSH key $key to agent..."
+    ssh-add "$key"
+  else
+    echo "SSH key $key is already added."
+  fi
+done < <(find "$HOME/.ssh" -type f -name "id_*" ! -name "*.pub" -print0)
 
 exit 0
