@@ -12,6 +12,7 @@ readonly EXIT_FAILURE=1
 
 # Source required functions
 source "$(dirname "$(readlink -f "$0")")/require.sh"
+source "$(dirname "$(readlink -f "$0")")/util.sh"
 
 # Defaults
 debug=false
