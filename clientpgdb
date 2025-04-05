@@ -1,19 +1,64 @@
 #!/usr/bin/env bash
 set -euo pipefail
 shopt -s inherit_errexit
-# Source the require.sh file
+
+# Source required libraries
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
 source "$SCRIPT_DIR/require.sh"
+source "$SCRIPT_DIR/postgre.sh"
 
-require psql
+#######################################
+# Main function for the script
+# Globals:
+#   None
+# Arguments:
+#   $1 - Database name to connect to
+# Outputs:
+#   Connects to PostgreSQL database or shows error
+# Returns:
+#   0 on success, non-zero on error
+#######################################
+function main() {
+  local db="$1"
 
-if [ $# -ne 1 ]; then
-  echo "usage: $0 db"
-  echo "db - database name"
-  exit 1
+  # Check psql is available
+  require_or_exit psql
+
+  # Connect to database
+  psql "$db"
+}
+
+#######################################
+# Show usage information
+# Globals:
+#   None
+# Arguments:
+#   None
+# Outputs:
+#   Prints usage to STDOUT
+# Returns:
+#   None
+#######################################
+function usage() {
+  cat << EOF
+Usage: ${0##*/} <database>
+Connect to a PostgreSQL database.
+
+Arguments:
+  database    Name of database to connect to
+
+Examples:
+  ${0##*/} mydb      Connect to 'mydb' database
+EOF
+}
+
+# Only execute main if not sourced
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  # Validate arguments
+  if [[ $# -ne 1 ]]; then
+    usage >&2
+    exit 1
+  fi
+
+  main "$@"
 fi
-db="$1"
-# Open your database
-psql "$db"
-exit $?
