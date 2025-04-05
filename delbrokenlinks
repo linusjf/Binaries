@@ -48,9 +48,18 @@ function parse_arguments() {
       -d | --dry-run) dry_run=true ;;
       -p | --print) print=true ;;
       --debug) debug=true ;;
-      -h | --help) usage; exit 0 ;;
-      --version) version; exit 0 ;;
-      *) usage; exit 1 ;;
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      --version)
+        version
+        exit 0
+        ;;
+      *)
+        usage
+        exit 1
+        ;;
     esac
     shift
   done
