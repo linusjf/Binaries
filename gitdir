@@ -6,71 +6,101 @@
 set -euo pipefail
 shopt -s inherit_errexit
 
-readonly SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_NAME="$(basename "$0")"
+readonly VERSION="1.0.0"
 readonly EXIT_FAILURE=1
 
-debug=false
+# Source required functions
+source "$(dirname "$(readlink -f "$0")")/require.sh"
 
-usage() {
+# Defaults
+debug=false
+verbose=false
+quiet=false
+dry_run=false
+
+function usage() {
   cat << EOF
 ${SCRIPT_NAME} - Get git repository directory path
 
 Usage: ${SCRIPT_NAME} [OPTION]
 
 Options:
-  --debug    Enable debug output
-  -h, --help Display this help message
+  -d, --debug    Enable debug output
+  -v, --verbose  Enable verbose output
+  -q, --quiet    Suppress all output
+  -n, --dry-run  Emulate execution
+  --version      Show version information
+  -h, --help     Display this help message
 
 Examples:
   ${SCRIPT_NAME}          # Print git directory path
   ${SCRIPT_NAME} --debug  # Print path with debug output
 EOF
-  exit ${EXIT_FAILURE}
 }
 
-main() {
+function version() {
+  printf "%s\n" "$VERSION"
+}
+
+function main() {
   parse_arguments "$@"
   setup_environment
   get_git_dir
 }
 
-parse_arguments() {
+function parse_arguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --debug)
+      -d|--debug)
         debug=true
         shift
         ;;
-      -h | --help)
+      -v|--verbose)
+        verbose=true
+        shift
+        ;;
+      -q|--quiet)
+        quiet=true
+        shift
+        ;;
+      -n|--dry-run)
+        dry_run=true
+        shift
+        ;;
+      --version)
+        version
+        exit 0
+        ;;
+      -h|--help)
         usage
+        exit 0
         ;;
       *)
-        printf "Error: Invalid argument '%s'\n" "$1" >&2
+        err "Error: Invalid argument '$1'"
         usage
+        exit "$EXIT_FAILURE"
         ;;
     esac
   done
 }
 
-setup_environment() {
-  if "${debug}"; then
+function setup_environment() {
+  if "$debug"; then
     set -x
   fi
 
-  local script_dir
-  script_dir=$(dirname "$(readlink -f "$0")")
-  source "${script_dir}/require.sh"
-  require git readlink
+  require_or_exit git readlink
 }
 
-get_git_dir() {
+function get_git_dir() {
   local git_dir
-  if ! git_dir=$(readlink -f "$(git rev-parse --git-dir)"); then
-    printf "Error retrieving Git repository directory\n" >&2
-    exit ${EXIT_FAILURE}
+  if ! git_dir="$(readlink -f "$(git rev-parse --git-dir)")"; then
+    err "Error retrieving Git repository directory"
+    exit "$EXIT_FAILURE"
   fi
 
-  printf "%s\n" "$git_dir"
+  out "$git_dir"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
