@@ -16,8 +16,6 @@ source "$(dirname "$(readlink -f "$0")")/require.sh"
 # Defaults
 debug=false
 verbose=false
-quiet=false
-dry_run=false
 
 function usage() {
   cat << EOF
@@ -29,7 +27,6 @@ Options:
   -d, --debug    Enable debug output
   -v, --verbose  Enable verbose output
   -q, --quiet    Suppress all output
-  -n, --dry-run  Emulate execution
   --version      Show version information
   -h, --help     Display this help message
 
@@ -47,32 +44,26 @@ function main() {
   parse_arguments "$@"
   setup_environment
   get_git_dir
+  cleanup_environment
 }
 
 function parse_arguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -d|--debug)
+      -d | --debug)
         debug=true
         shift
         ;;
-      -v|--verbose)
+      -v | --verbose)
+        # shellcheck disable=SC2034
         verbose=true
-        shift
-        ;;
-      -q|--quiet)
-        quiet=true
-        shift
-        ;;
-      -n|--dry-run)
-        dry_run=true
         shift
         ;;
       --version)
         version
         exit 0
         ;;
-      -h|--help)
+      -h | --help)
         usage
         exit 0
         ;;
@@ -91,6 +82,12 @@ function setup_environment() {
   fi
 
   require_or_exit git readlink
+}
+
+function cleanup_environment() {
+  if "$debug"; then
+    set +x
+  fi
 }
 
 function get_git_dir() {
