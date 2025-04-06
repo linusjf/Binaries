@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Get a list of all local branches
+branches=$(git branch --list | cut -d' ' -f2-)
+
+# Loop through each branch
+for branch in $branches; do
+  # Checkout the branch
+  git checkout "$branch"
+  
+  # Check if there are any dirty files
+  if [ -n "$(git status --porcelain)" ]; then
+    stash_name="auto-stash-$branch-$(date +%s)"
+    echo "Dirty files detected in branch $branch. Stashing as $stash_name..."
+    git stash push -m "$stash_name"
+  else
+    echo "No dirty files in branch $branch. Proceeding with pull..."
+  fi
+  
+  # Pull the branch
+  git pull origin "$branch"
+  
+  # If the pull was successful and we stashed earlier, reapply the stash
+  if [ $? -eq 0 ] && [ -n "$(git stash list)" ]; then
+    stash_ref=$(git stash list | grep "$stash_name" | cut -d':' -f1)
+    if [ -n "$stash_ref" ]; then
+      git stash apply "$stash_ref"
+      git stash drop "$stash_ref"
+    fi
+  elif [ $? -ne 0 ]; then
+    echo "Error pulling branch $branch. Stash remains."
+  fi
+done
