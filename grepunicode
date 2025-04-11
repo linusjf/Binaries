@@ -1,3 +1,147 @@
 #!/usr/bin/env bash
-# script to check if files contain unicode
-grep -P "[\x{1f300}-\x{1f5ff}\x{1f900}-\x{1f9ff}\x{1f600}-\x{1f64f}\x{1f680}-\x{1f6ff}\x{2600}-\x{26ff}\x{2700}-\x{27bf}\x{1f1e6}-\x{1f1ff}\x{1f191}-\x{1f251}\x{1f004}\x{1f0cf}\x{1f170}-\x{1f171}\x{1f17e}-\x{1f17f}\x{1f18e}\x{3030}\x{2b50}\x{2b55}\x{2934}-\x{2935}\x{2b05}-\x{2b07}\x{2b1b}-\x{2b1c}\x{3297}\x{3299}\x{303d}\x{00a9}\x{00ae}\x{2122}\x{23f3}\x{24c2}\x{23e9}-\x{23ef}\x{25b6}\x{23f8}-\x{23fa}]" "$@"
+#
+# Search files for Unicode characters (emojis, symbols, etc)
+#
+# Usage: grepunicode [OPTION]... [FILE]...
+#   -h, --help     Show this help message
+#   -v, --version  Show version information
+#   -q, --quiet    Suppress all output except matches
+#   -d, --debug    Enable debug output
+#   -n, --dry-run  Emulate execution
+
+set -euo pipefail
+shopt -s inherit_errexit
+
+readonly VERSION="1.0.0"
+readonly SCRIPT_NAME="$(basename "$0")"
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
+readonly EXIT_USAGE=2
+
+debug=false
+quiet=false
+dry_run=false
+
+function usage() {
+  cat << EOF
+${SCRIPT_NAME} - Search files for Unicode characters
+
+Usage: ${SCRIPT_NAME} [OPTION]... [FILE]...
+
+Options:
+  -h, --help     Show this help message
+  -v, --version  Show version information
+  -q, --quiet    Suppress all output except matches
+  -d, --debug    Enable debug output
+  -n, --dry-run  Emulate execution
+
+Examples:
+  ${SCRIPT_NAME} file.txt          # Search file.txt for Unicode
+  ${SCRIPT_NAME} -q *.txt          # Quiet mode search all txt files
+  ${SCRIPT_NAME} --debug file.log  # Debug mode search file.log
+EOF
+  exit ${EXIT_USAGE}
+}
+
+function version() {
+  printf "%s\n" "${VERSION}"
+}
+
+function main() {
+  parse_arguments "$@"
+  setup_environment "$@"
+  perform_search "$@"
+}
+
+function parse_arguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h | --help)
+        usage
+        ;;
+      -v | --version)
+        version
+        exit ${EXIT_SUCCESS}
+        ;;
+      -q | --quiet)
+        quiet=true
+        shift
+        ;;
+      -d | --debug)
+        debug=true
+        shift
+        ;;
+      -n | --dry-run)
+        dry_run=true
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        err "Error: Invalid option '$1'"
+        usage
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+}
+
+function setup_environment() {
+  if [[ "${debug}" == true ]]; then
+    set -x
+  fi
+
+  if [[ $# -eq 0 ]]; then
+    err "Error: No files specified"
+    usage
+  fi
+}
+
+function validate_paths() {
+  local invalid_paths=()
+  for path in "$@"; do
+    if [[ ! -e "$path" ]]; then
+      invalid_paths+=("$path")
+    fi
+  done
+
+  if [[ ${#invalid_paths[@]} -gt 0 ]]; then
+    err "Error: The following paths do not exist:"
+    for path in "${invalid_paths[@]}"; do
+      err "  $path"
+    done
+    return ${EXIT_FAILURE}
+  fi
+  return ${EXIT_SUCCESS}
+}
+
+function perform_search() {
+  local unicode_pattern="[\x{1f300}-\x{1f5ff}\x{1f900}-\x{1f9ff}\x{1f600}-\x{1f64f}\x{1f680}-\x{1f6ff}\x{2600}-\x{26ff}\x{2700}-\x{27bf}\x{1f1e6}-\x{1f1ff}\x{1f191}-\x{1f251}\x{1f004}\x{1f0cf}\x{1f170}-\x{1f171}\x{1f17e}-\x{1f17f}\x{1f18e}\x{3030}\x{2b50}\x{2b55}\x{2934}-\x{2935}\x{2b05}-\x{2b07}\x{2b1b}-\x{2b1c}\x{3297}\x{3299}\x{303d}\x{00a9}\x{00ae}\x{2122}\x{23f3}\x{24c2}\x{23e9}-\x{23ef}\x{25b6}\x{23f8}-\x{23fa}]"
+
+  if [[ "${dry_run}" == true ]]; then
+    out "Would search for Unicode in: $*"
+    return ${EXIT_SUCCESS}
+  fi
+
+  if ! validate_paths "$@"; then
+    return ${EXIT_FAILURE}
+  fi
+
+  grep -P "${unicode_pattern}" "$@"
+}
+
+function out() {
+  [[ "${quiet}" != true ]] && printf "%b\n" "$*"
+}
+
+function err() {
+  >&2 printf "%b\n" "$*"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
