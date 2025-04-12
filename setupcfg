@@ -12,7 +12,6 @@ readonly EXIT_FAILURE=1
 
 verbose=false
 dry_run=false
-debug=false
 
 # Source color utilities
 if command -v realpath > /dev/null 2>&1; then
@@ -103,8 +102,8 @@ function link_configuration_item() {
     if ${dry_run}; then
       print_info "[DRY RUN] Would backup: ${link_path}"
     else
-      cp --backup=numbered -r "${link_path}" "${link_path}.old" ||
-        {
+      cp --backup=numbered -r "${link_path}" "${link_path}.old" \
+        || {
           print_error "Backup failed: ${link_path}"
           return ${EXIT_FAILURE}
         }
@@ -115,8 +114,8 @@ function link_configuration_item() {
   if ${dry_run}; then
     print_info "[DRY RUN] Would link: ${link_path} -> ${item_path}"
   else
-    ln -sf "${item_path}" "${link_path}" ||
-      {
+    ln -sf "${item_path}" "${link_path}" \
+      || {
         print_error "Failed to link: ${link_path}"
         return ${EXIT_FAILURE}
       }
@@ -137,8 +136,8 @@ function handle_git_config() {
   if ${dry_run}; then
     print_info "[DRY RUN] Would setup git config"
   else
-    cp --backup=numbered -r "${HOME}/.git" "${HOME}/.git.old" ||
-      {
+    cp --backup=numbered -r "${HOME}/.git" "${HOME}/.git.old" \
+      || {
         print_error "Git config backup failed"
         return ${EXIT_FAILURE}
       }
@@ -177,7 +176,6 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --debug)
-      debug=true
       set -x
       shift
       ;;
