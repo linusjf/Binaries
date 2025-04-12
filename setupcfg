@@ -15,7 +15,7 @@ dry_run=false
 debug=false
 
 # Source color utilities
-if command -v realpath >/dev/null 2>&1; then
+if command -v realpath > /dev/null 2>&1; then
   SCRIPT_DIR=$(dirname "$(realpath "$0")")
 else
   SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" &> /dev/null && pwd -P)
@@ -103,8 +103,8 @@ function link_configuration_item() {
     if ${dry_run}; then
       print_info "[DRY RUN] Would backup: ${link_path}"
     else
-      cp --backup=numbered -r "${link_path}" "${link_path}.old" \
-        || {
+      cp --backup=numbered -r "${link_path}" "${link_path}.old" ||
+        {
           print_error "Backup failed: ${link_path}"
           return ${EXIT_FAILURE}
         }
@@ -115,8 +115,8 @@ function link_configuration_item() {
   if ${dry_run}; then
     print_info "[DRY RUN] Would link: ${link_path} -> ${item_path}"
   else
-    ln -sf "${item_path}" "${link_path}" \
-      || {
+    ln -sf "${item_path}" "${link_path}" ||
+      {
         print_error "Failed to link: ${link_path}"
         return ${EXIT_FAILURE}
       }
@@ -137,8 +137,8 @@ function handle_git_config() {
   if ${dry_run}; then
     print_info "[DRY RUN] Would setup git config"
   else
-    cp --backup=numbered -r "${HOME}/.git" "${HOME}/.git.old" \
-      || {
+    cp --backup=numbered -r "${HOME}/.git" "${HOME}/.git.old" ||
+      {
         print_error "Git config backup failed"
         return ${EXIT_FAILURE}
       }
@@ -152,7 +152,7 @@ function main() {
     .bashrc .bash_profile .bash_aliases .bash_logout
     .gitconfig .gitrc .github .gitguardian.yml .emacs .sqliterc
     .ssh .termux .tmux.conf .vimrc .jupyter .aider.conf.yml
-    .aider.model.settings.yml templates .gitignore_global .shellcheckrc
+    .aider.model.settings.yml templates .gitignore_global .shellcheckrc .yamlfmt.yaml
   )
 
   require_commands cp rm ln git
