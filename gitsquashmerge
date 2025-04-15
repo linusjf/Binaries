@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+shopt -s inherit_errexit
+
+MAIN_BRANCH="main"
+FEATURE_BRANCH="development"
+
+# Check for uncommitted changes
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Repository has uncommitted changes. Stashing..."
+  git stash push -u -m "Auto-stash before squash_and_merge"
+fi
+
+# Checkout feature branch
+git checkout "$FEATURE_BRANCH"
+
+# Find base commit
+BASE_COMMIT=$(git merge-base $MAIN_BRANCH $FEATURE_BRANCH)
+echo "Base commit: $BASE_COMMIT"
+
+# Soft reset to squash all commits since base
+git reset --soft "$BASE_COMMIT"
+git commit -m "Squashed commit for $FEATURE_BRANCH branch"
+
+# Checkout main
+git checkout $MAIN_BRANCH
+
+# Reset to base commit to remove the fast-forward merge
+git reset --hard "$BASE_COMMIT"
+echo "Reset $MAIN_BRANCH to $BASE_COMMIT"
+
+# Merge squashed feature branch
+git merge $FEATURE_BRANCH
+
+# Force push the updated main
+git push origin $MAIN_BRANCH --force
+echo "$MAIN_BRANCH has been updated with squashed $FEATURE_BRANCH"
+
+# Apply stashed changes back, if any
+if git stash list | grep -q "Auto-stash before squash_and_merge"; then
+  echo "Re-applying stashed changes..."
+  git stash pop
+fi
