@@ -9,7 +9,11 @@ if [[ "$1" == "--dry-run" ]]; then
 fi
 
 original_branch=$(git rev-parse --abbrev-ref HEAD)
-commits=("$(git log --pretty=format:'%H%x09%s')")
+
+commits=()
+while IFS= read -r commit; do
+  commits+=("$commit")
+done < <(git log --pretty=format:'%H%x09%s')
 
 latest_msg=$(echo "${commits[0]}" | cut -f2)
 hashes_to_squash=()
