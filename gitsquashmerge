@@ -108,7 +108,7 @@ if [[ "$original_branch" != "main" ]]; then
       read -r -p "Rebase '$original_branch' onto new 'main'? (y/N): " rebase_confirm
       if [[ "$rebase_confirm" == "y" || "$rebase_confirm" == "Y" ]]; then
         git checkout "$original_branch"
-        git rebase main
+        git rebase -i --rebase-merges main
         echo "'$original_branch' rebased onto new 'main'."
       else
         read -r -p "Hard reset '$original_branch' to 'main' instead? (y/N): " reset_confirm
