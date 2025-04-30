@@ -158,10 +158,6 @@ function configure_spacevim() {
       ${dry_run} && print_info "[DRY RUN] Would link ${config_file} to ${target_file}" || ln -sf "${config_file}" "${target_file}"
       ${verbose} && print_info "Linked ${config_file} to ${target_file}"
 
-      if [[ -d "${home_dir}/Configurations/autoload" ]]; then
-        ${dry_run} && print_info "[DRY RUN] Would link autoload directory" || ln -sf "${home_dir}/Configurations/autoload" "${home_dir}/.SpaceVim.d/autoload"
-        ${verbose} && print_info "Linked autoload directory"
-      fi
     else
       print_error "Error: Configuration file '${config_file}' not found."
       return ${EXIT_FAILURE}
@@ -176,6 +172,10 @@ function configure_spacevim() {
       print_error "Error: Configuration file '${config_file}' not found."
       return ${EXIT_FAILURE}
     fi
+  fi
+  if [[ -d "${home_dir}/Configurations/autoload" ]]; then
+    ${dry_run} && print_info "[DRY RUN] Would link autoload directory" || ln -sf "${home_dir}/Configurations/autoload" "${home_dir}/.SpaceVim.d/autoload"
+    ${verbose} && print_info "Linked autoload directory"
   fi
 }
 
