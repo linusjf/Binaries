@@ -191,10 +191,14 @@ function main() {
 
       # Check if submodules are dirty
       if ! git diff --submodule --quiet; then
-        run_command git pull
+        if git show-ref --verify --quiet "refs/remotes/origin/$(git symbolic-ref --short HEAD)"; then
+          run_command git pull
+        fi
         run_command git add .
         run_command git commit -m "feat: Update submodules $(date +'%Y-%m-%dT%H:%M:%S%z')"
-        run_command git push origin "${branch}"
+        if git show-ref --verify --quiet "refs/remotes/origin/$(git symbolic-ref --short HEAD)"; then
+          run_command git push origin "${branch}"
+        fi
       fi
     fi
 
