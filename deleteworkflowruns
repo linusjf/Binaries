@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+gh run list --workflow "$1" --limit "$2" | awk '{print $(NF -2)}' | xargs -n1 gh run delete
