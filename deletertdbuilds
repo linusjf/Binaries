@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+# === Configuration ===
+API_TOKEN="$RTD_TOKEN"
+PROJECT_SLUG="$1"
+BASE_URL="https://readthedocs.org/api/v3"
+DAYS_OLD=7
+
+# === Date cutoff (ISO 8601) ===
+CUTOFF_DATE=$(date -u -d "$DAYS_OLD days ago" +"%Y-%m-%dT%H:%M:%S")
+
+# === Fetch and delete builds ===
+echo "Fetching builds for project: $PROJECT_SLUG"
+
+URL="$BASE_URL/projects/$PROJECT_SLUG/builds/"
+
+while [ -n "$URL" ]; do
+  RESPONSE=$(curl -s -H "Authorization: Token $API_TOKEN" "$URL")
+  echo "$RESPONSE" | jq -c '.results[]' | while read -r build; do
+    BUILD_ID=$(echo "$build" | jq -r '.id')
+    BUILD_DATE=$(echo "$build" | jq -r '.date' | cut -d. -f1) # remove milliseconds
+
+    if [[ "$BUILD_DATE" < "$CUTOFF_DATE" ]]; then
+      DELETE_URL="$BASE_URL/builds/$BUILD_ID/"
+      echo "Deleting build $BUILD_ID from $BUILD_DATE"
+      curl -s -X DELETE -H "Authorization: Token $API_TOKEN" "$DELETE_URL"
+    fi
+  done
+
+  # Get the next page
+  URL=$(echo "$RESPONSE" | jq -r '.next')
+done
+
+echo "Done."
