@@ -4,7 +4,7 @@
 API_TOKEN="$RTD_TOKEN"
 PROJECT_SLUG="$1"
 BASE_URL="https://readthedocs.org/api/v3"
-DAYS_OLD=7
+DAYS_OLD="$2"
 
 # === Date cutoff (ISO 8601) ===
 CUTOFF_DATE=$(date -u -d "$DAYS_OLD days ago" +"%Y-%m-%dT%H:%M:%S")
