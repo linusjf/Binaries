@@ -1,5 +1,47 @@
 #!/usr/bin/env bash
 
-curl \
-  -X POST \
-  -H "Authorization: Token $RTD_TOKEN" https://readthedocs.org/api/v3/projects/${1}/versions/latest/builds/
+# Triggers a new build of the latest version of a ReadTheDocs project
+# Globals:
+#   RTD_TOKEN - ReadTheDocs API token
+# Arguments:
+#   $1 - Project slug/identifier
+# Outputs:
+#   Build trigger response to STDOUT
+# Returns:
+#   Exit status of curl command
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+readonly VERSION="1.0.0"
+
+function version() {
+  printf "%s\n" "$VERSION"
+}
+
+function trigger_build() {
+  local project_slug="$1"
+  curl \
+    -X POST \
+    -H "Authorization: Token ${RTD_TOKEN}" \
+    "https://readthedocs.org/api/v3/projects/${project_slug}/versions/latest/builds/"
+}
+
+function main() {
+  if [[ $# -ne 1 ]]; then
+    err "Usage: ${0##*/} <project-slug>"
+    return 1
+  fi
+
+  if [[ -z "${RTD_TOKEN:-}" ]]; then
+    err "RTD_TOKEN environment variable must be set"
+    return 1
+  fi
+
+  trigger_build "$@"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
