@@ -23,9 +23,10 @@ function version() {
 function trigger_build() {
   local project_slug="$1"
   curl \
+    --silent \
     -X POST \
     -H "Authorization: Token ${RTD_TOKEN}" \
-    "https://readthedocs.org/api/v3/projects/${project_slug}/versions/latest/builds/"
+    "https://readthedocs.org/api/v3/projects/${project_slug}/versions/latest/builds/" > /dev/null
 }
 
 function main() {
