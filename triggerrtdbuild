@@ -16,6 +16,8 @@ set -o pipefail
 
 readonly VERSION="1.0.0"
 
+source "util.sh"
+
 function version() {
   printf "%s\n" "$VERSION"
 }
