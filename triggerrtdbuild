@@ -33,7 +33,7 @@ function trigger_build() {
 
 function main() {
   if [[ $# -ne 1 ]]; then
-    err "Usage: ${0##*/} <project-slug>"
+    >&2 echo "Usage: ${0##*/} <project-slug>"
     return 1
   fi
 
